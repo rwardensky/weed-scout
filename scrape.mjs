@@ -1,0 +1,464 @@
+// THCa vendor scraper. Node 18+ (no dependencies).
+// Usage: node scrape.mjs [--only jgrows,kache] [--no-reddit] [--no-reviews]
+// Output: data.json (read by the dashboard). Caches live in ./cache.
+import fs from 'node:fs';
+import { execFile } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const DIR = path.dirname(fileURLToPath(import.meta.url));
+const CACHE = path.join(DIR, 'cache');
+fs.mkdirSync(CACHE, { recursive: true });
+const args = process.argv.slice(2);
+const argVal = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
+const ONLY = argVal('--only')?.split(',');
+const NO_REDDIT = args.includes('--no-reddit');
+const NO_REVIEWS = args.includes('--no-reviews');
+const REDDIT_ONLY = args.includes('--reddit-only'); // re-score existing data.json with fresh Reddit buzz
+const FROM_CACHE = args.includes('--from-cache'); // rebuild items from cached raw catalogs, no store requests
+const cfg = JSON.parse(fs.readFileSync(path.join(DIR, 'vendors.json'), 'utf8'));
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36';
+const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
+
+// ---------- polite fetch: per-host spacing + 429 backoff ----------
+const CURL_HOSTS = new Set(cfg.vendors.filter((v) => v.fetcher === 'curl').map((v) => new URL(v.url).host));
+const lastHit = new Map();
+async function get(url, { json = false, gap = 3500, tries = 5 } = {}) {
+  const host = new URL(url).host;
+  for (let t = 0; t < tries; t++) {
+    const wait = (lastHit.get(host) || 0) + gap - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastHit.set(host, Date.now());
+    let res;
+    if (CURL_HOSTS.has(host)) {
+      // some firewalls block Node's fetch fingerprint but allow curl (bundled with Windows 10+)
+      const r = await new Promise((ok) => execFile('curl', ['-s', '-m', '30', '-A', UA, '-w', '\n%{http_code}', url], { maxBuffer: 50e6 }, (e, out) => ok(e ? null : out)));
+      if (r == null) { await sleep(5000); continue; }
+      const cut = r.lastIndexOf('\n'); const status = +r.slice(cut + 1); const text = r.slice(0, cut);
+      if (status === 429) { await sleep(65000); continue; }
+      if (status !== 200) return { status, body: null };
+      if (json) { try { return { status, body: JSON.parse(text) }; } catch { return { status, body: null }; } }
+      return { status, body: text };
+    }
+    try {
+      res = await fetch(url, { headers: { 'user-agent': UA, accept: json ? 'application/json' : 'text/html,*/*' }, signal: AbortSignal.timeout(30000) });
+    } catch (e) { log('  net error', url, e.message); await sleep(5000); continue; }
+    if (res.status === 429 || res.status === 503) {
+      const ra = Math.min(180, Number(res.headers.get('retry-after')) || 60);
+      log(`  ${res.status} on ${host}, waiting ${ra + 5}s`);
+      await sleep((ra + 5) * 1000);
+      continue;
+    }
+    if (!res.ok) return { status: res.status, body: null };
+    const text = await res.text();
+    if (/<title>Just a moment/i.test(text)) return { status: 403, body: null };
+    if (json) { try { return { status: 200, body: JSON.parse(text) }; } catch { return { status: 200, body: null }; } }
+    return { status: 200, body: text };
+  }
+  return { status: 429, body: null };
+}
+
+// ---------- classification ----------
+const EXCLUDE = /gumm|edible|jell(y|ies)|chocolate|tincture|beverage|drink|seltzer|soda|t-?shirt|hoodie|\bhat\b|merch|apparel|gift ?card|sticker|lighter|grinder|\brig\b|banger|torch|bong|pipe\b|carb cap|topical|lotion|capsule|softgel|cookie|candy|syrup|\bpet\b|delta[- ]?8|delta[- ]?9 gumm|mushroom|amanita|kratom|bundle builder|subscription|sample pack|mystery|bottle|bites\b|taffy|\bmints?\b|\bchews?\b|lozenge|honey|caramel|\btea\b|delivery fee|discount|loyalty|testing product|mood ?mats?|\bmats?\b|dab swabs?|\bcbd (flower|hemp)|hemp flower cbd|\bcbg\b|massage oil|\brub\b|balm|accessor|cbd isolate|isolate powder/i;
+function classify(text) {
+  const t = text.toLowerCase();
+  if (EXCLUDE.test(t)) return null;
+  if (/\bcbd\b/.test(t) && !/thc/.test(t)) return null; // CBD-only products
+  if (/\b(carts?|cartridges?|vapes?|disposables?|pods?|aio|a\.i\.o|all[- ]in[- ]one|510|pens?)\b/.test(t)) return 'vape';
+  if (/pre-?rolls?|\bjoints?\b|\bblunts?\b|infused roll|hash hole|cannarillo|cannagar/.test(t)) return 'preroll';
+  if (/\bflower\b|\bsmalls\b/.test(t) && !/rosin|hash/.test(t)) return 'flower';
+  if (/rosin|solventless|bubble hash|ice ?water hash|temple ball|\bhash\b|piatella|full melt|cold cure|fresh press|\bhrc\b|thumbprint/.test(t)) return 'rosin';
+  if (/live resin|diamond|sauce|badder|batter|budder|sugar|\bwax\b|shatter|crumble|concentrate|isolate|\bdab|distillate|hte|caviar|moonrock/.test(t)) return 'concentrate';
+  if (/flower|eighth|\bbuds?\b|smalls|indoor|greenhouse|exotic|\boz\b|ounce|strain|indica|sativa|hybrid/.test(t)) return 'flower';
+  return null;
+}
+function parseGrams(s) {
+  if (!s) return null;
+  s = s.replace(/\$\s*\d+(\.\d+)?/g, ' '); // ignore prices like "$100 Oz's"
+  const t = s.toLowerCase();
+  let m;
+  if (/half ?(a )?gram/.test(t)) return 0.5;
+  if ((m = t.match(/(\d*\.?\d+)\s*(?:g|gr|gram|grams|ml)\b/))) return parseFloat(m[1]);
+  if ((m = t.match(/(\d*\.?\d+)\s*mg\b/)) && parseFloat(m[1]) >= 100) return parseFloat(m[1]) / 1000;
+  if (/\b1\/8|eighth/.test(t)) return 3.5;
+  if (/\b1\/4(?!\s*(lb|pound))|quarter(?! pound)/.test(t)) return 7;
+  if (/\b1\/2\s*(oz|ounce)|half ?(oz|ounce)/.test(t)) return 14;
+  if ((m = t.match(/(\d+(?:\.\d+)?)\s*(?:oz|ounces?)\b/))) return parseFloat(m[1]) * 28;
+  if (/\bounce\b|\bzip\b/.test(t)) return 28;
+  if (/\bqp\b|quarter pound/.test(t)) return 112;
+  if (/\bhp\b|half pound|half lb/.test(t)) return 224;
+  if (/\bpound\b|\blb\b/.test(t)) return 448;
+  return null;
+}
+const HM = cfg.hashmakers;
+const SOLVENTLESS = [...cfg.hashmakers, ...(cfg.solventlessBrands || [])];
+function findHashmaker(text) {
+  const t = text.toLowerCase();
+  return HM.find((h) => t.includes(h.toLowerCase())) || null;
+}
+const norm = (x) => (x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function isThirdParty(v, brand) {
+  const b = norm(brand); if (b.length < 3) return false;
+  // generic product-type labels that stores put in the brand field
+  if (/flower|thc|cbd|vape|indoor|outdoor|type\d|hemp|exotic|concentrate|rosin$|dablicator|default|preroll/.test(b)) return false;
+  const initials = (s) => (s || '').split(/[^A-Za-z]+/).filter(Boolean).map((w) => w[0].toLowerCase()).join('');
+  if (b === initials(v.name) || b === initials(v.name) + 's') return false;
+  const own = [norm(v.name), norm(v.id), norm(new URL(v.url).host.replace(/^www\./, '').split('.')[0])];
+  return !own.some((o) => o && (b.includes(o.slice(0, 6)) || o.includes(b.slice(0, 6))));
+}
+const strip = (h) => (h || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#0?39;|&#8217;|&rsquo;/g, "'").replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ').trim();
+
+function makeItem(v, p) {
+  // classify on title+brand first; tags are noisy, so only use them as a fallback
+  let category = classify(`${p.title} ${p.brand || ''}`) ?? classify([p.title, p.type, (p.cats || []).join(' '), (p.tags || []).join(' ')].join(' '));
+  // boutique solventless makers often get filed under generic "Concentrates"
+  if (category === 'concentrate' && (SOLVENTLESS.some((b) => norm(p.brand).includes(norm(b))) || /solventless|hash|melt|sift|rosin|ice ?water/i.test(p.brand || ''))) category = 'rosin';
+  if (!category) return null;
+  const anyLabelWeight = p.variants.some((y) => parseGrams(y.label));
+  const variants = p.variants.map((x) => {
+    const g = parseGrams(x.label) ?? (!anyLabelWeight ? parseGrams(p.title) ?? (p.variants.length === 1 ? parseGrams(p.desc) : null) : null);
+    return { label: x.label || 'Default', grams: g, price: x.price, compareAt: x.compareAt > x.price ? x.compareAt : null, available: x.available, ppg: g && x.price ? +(x.price / g).toFixed(2) : null };
+  }).filter((x) => x.price > 0);
+  if (!variants.length) return null;
+  const avail = variants.filter((x) => x.available);
+  const pool = avail.length ? avail : variants;
+  const withPpg = pool.filter((x) => x.ppg);
+  const best = withPpg.sort((a, b) => a.ppg - b.ppg)[0] || null;
+  return {
+    id: `${v.id}:${p.handle}`, vendorId: v.id, title: strip(p.title), brand: p.brand || null, category,
+    url: p.url, image: p.image || null, variants,
+    available: avail.length > 0, minPrice: Math.min(...pool.map((x) => x.price)),
+    bestPpg: best?.ppg ?? null, bestPpgLabel: best?.label ?? null, bestPpgGrams: best?.grams ?? null,
+    onSale: variants.some((x) => x.compareAt),
+    hashmaker: findHashmaker(`${p.title} ${p.brand || ''} ${(p.tags || []).join(' ')}`),
+    thirdParty: isThirdParty(v, p.brand) ? strip(p.brand) : null,
+    rating: p.rating ?? null, reviewCount: p.reviewCount ?? null,
+  };
+}
+
+// ---------- platform scrapers ----------
+async function shopify(v) {
+  const out = [];
+  for (let page = 1; page <= 12; page++) {
+    const r = await get(`${v.url}/products.json?limit=250&page=${page}`, { json: true, gap: 6000 });
+    if (!r.body?.products) { if (page === 1) throw new Error(`products.json ${r.status}`); break; }
+    for (const p of r.body.products) {
+      out.push({
+        handle: p.handle, title: p.title, type: p.product_type, tags: Array.isArray(p.tags) ? p.tags : String(p.tags || '').split(','),
+        brand: p.vendor, desc: strip(p.body_html).slice(0, 600), url: `${v.url}/products/${p.handle}`, image: p.images?.[0]?.src,
+        variants: p.variants.map((x) => ({ label: x.title === 'Default Title' ? '' : x.title, price: +x.price, compareAt: +x.compare_at_price || null, available: !!x.available })),
+      });
+    }
+    if (r.body.products.length < 250) break;
+  }
+  return out;
+}
+
+async function woo(v) {
+  const base = `${v.url}/wp-json/wc/store/v1/products`;
+  const parents = [];
+  for (let page = 1; page <= 15; page++) {
+    const r = await get(`${base}?per_page=99&page=${page}`, { json: true, gap: 2500 });
+    if (!Array.isArray(r.body)) { if (page === 1) throw new Error(`store api ${r.status}`); break; }
+    parents.push(...r.body);
+    if (r.body.length < 99) break;
+  }
+  const vars = [];
+  for (let page = 1; page <= 30; page++) {
+    const r = await get(`${base}?type=variation&per_page=99&page=${page}`, { json: true, gap: 2500 });
+    if (!Array.isArray(r.body) || !r.body.length) break;
+    vars.push(...r.body);
+    if (r.body.length < 99) break;
+  }
+  const byParent = new Map();
+  for (const x of vars) { if (!byParent.has(x.parent)) byParent.set(x.parent, []); byParent.get(x.parent).push(x); }
+  const money = (pr, k) => +(pr?.[k] || 0) / 10 ** (pr?.currency_minor_unit ?? 2);
+  return parents.filter((p) => p.type !== 'variation').map((p) => {
+    const kids = byParent.get(p.id) || [];
+    let variants;
+    if (kids.length) {
+      variants = kids.map((k) => ({ label: (k.variation || k.name.replace(p.name, '')).replace(/^[\s\-–:]+/, ''), price: money(k.prices, 'price'), compareAt: money(k.prices, 'regular_price'), available: k.is_in_stock !== false && k.is_purchasable !== false }));
+    } else if (p.prices?.price_range) {
+      // fall back: map min/max price onto the smallest/largest size option
+      const sizes = (p.attributes || []).flatMap((a) => a.terms.map((t) => t.name)).filter((s) => parseGrams(s)).sort((a, b) => parseGrams(a) - parseGrams(b));
+      const lo = money(p.prices.price_range, 'min_amount'), hi = money(p.prices.price_range, 'max_amount');
+      variants = sizes.length >= 2 ? [{ label: sizes[0], price: lo, available: p.is_in_stock }, { label: sizes.at(-1), price: hi, available: p.is_in_stock }] : [{ label: sizes[0] || '', price: lo, available: p.is_in_stock }];
+    } else {
+      variants = [{ label: '', price: money(p.prices, 'price'), compareAt: money(p.prices, 'regular_price'), available: p.is_in_stock }];
+    }
+    return {
+      handle: p.slug, title: strip(p.name), desc: strip(p.short_description || p.description).slice(0, 600), type: '', tags: (p.tags || []).map((t) => t.name), cats: (p.categories || []).map((c) => c.name),
+      url: p.permalink, image: p.images?.[0]?.thumbnail || p.images?.[0]?.src, variants,
+      rating: +p.average_rating || null, reviewCount: p.review_count || null,
+    };
+  });
+}
+
+// Square Online public store API (ids come from window.__BOOTSTRAP_STATE__ on any page)
+async function square(v) {
+  const out = [];
+  for (let page = 1; page <= 10; page++) {
+    const r = await get(`https://cdn5.editmysite.com/app/store/api/v28/editor/users/${v.squareUser}/sites/${v.squareSite}/products?page=${page}&per_page=100&include=images`, { json: true, gap: 1500 });
+    if (!r.body?.data) { if (page === 1) throw new Error(`square api ${r.status}`); break; }
+    for (const p of r.body.data) {
+      if (p.visibility !== 'visible') continue;
+      const lo = p.price?.low, hi = p.price?.high, reg = p.price?.regular_low;
+      const avail = !p.badges?.out_of_stock && !p.inventory?.all_variations_sold_out;
+      out.push({
+        handle: p.id, title: strip(p.name), type: '', tags: [], cats: [], desc: strip(p.short_description),
+        url: p.absolute_site_link, image: p.images?.data?.[0]?.absolute_url || null,
+        variants: lo === hi || !hi ? [{ label: '', price: lo, compareAt: reg > lo ? reg : null, available: avail }]
+          : [{ label: 'from', price: lo, available: avail }],
+        rating: p.avg_rating || null,
+      });
+    }
+    if (r.body.meta?.pagination?.current_page >= r.body.meta?.pagination?.total_pages) break;
+  }
+  return out;
+}
+
+function ldProducts(html) {
+  const out = [];
+  for (const m of html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    let j; try { j = JSON.parse(m[1].trim()); } catch { continue; }
+    const walk = (o) => { if (!o || typeof o !== 'object') return; if (Array.isArray(o)) return o.forEach(walk); if (/Product/.test(o['@type'])) out.push(o); if (o['@graph']) walk(o['@graph']); };
+    walk(j);
+  }
+  return out;
+}
+async function jsonld(v) {
+  const urls = new Set();
+  const queue = [`${v.url}/sitemap.xml`];
+  while (queue.length && urls.size < 600) {
+    const r = await get(queue.shift(), { gap: 2000 });
+    if (!r.body) continue;
+    const locs = [...r.body.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map((m) => m[1].replace(/&amp;/g, '&'));
+    if (/<sitemapindex/i.test(r.body)) queue.push(...locs.filter((l) => /product|store|item|shop/i.test(l)).slice(0, 6));
+    else locs.filter((l) => /\/(product|products|product-page|shop|store)\//i.test(l)).forEach((l) => urls.add(l));
+  }
+  if (!urls.size) throw new Error('no product URLs in sitemap');
+  log(`  ${urls.size} product pages`);
+  const out = [];
+  for (const u of [...urls].slice(0, 400)) {
+    const r = await get(u, { gap: 2000 });
+    if (!r.body) continue;
+    for (const p of ldProducts(r.body).slice(0, 1)) {
+      const offers = [].concat(p.offers?.offers || p.offers || []);
+      const variants = offers.length && offers[0]['@type'] !== 'AggregateOffer'
+        ? offers.map((o) => ({ label: o.name || o.sku || '', price: +o.price || +o.lowPrice, available: !/OutOfStock|SoldOut/i.test(o.availability || '') }))
+        : [{ label: '', price: +(offers[0]?.lowPrice || offers[0]?.price || 0), available: !/OutOfStock|SoldOut/i.test(offers[0]?.availability || '') }];
+      const im0 = Array.isArray(p.image) ? p.image[0] : p.image;
+      const img = typeof im0 === 'string' ? im0 : im0?.url || im0?.contentUrl || im0?.thumbnailUrl || null;
+      out.push({
+        handle: u.split('/').filter(Boolean).pop(), title: p.name, desc: strip(p.description).slice(0, 600), type: p.category || '', tags: [], cats: [], brand: p.brand?.name || p.brand,
+        url: u, image: typeof img === 'string' ? img : null, variants,
+        rating: +p.aggregateRating?.ratingValue || null, reviewCount: +(p.aggregateRating?.reviewCount || p.aggregateRating?.ratingCount) || null,
+      });
+    }
+  }
+  return out;
+}
+
+// ---------- product-page review scraping (Shopify review widgets), cached 7 days ----------
+function pageRating(html) {
+  for (const p of ldProducts(html)) {
+    const a = p.aggregateRating; if (a && +a.ratingValue) return { rating: +a.ratingValue, count: +(a.reviewCount || a.ratingCount) || 0 };
+  }
+  const pats = [
+    [/jdgm-prev-badge[^>]*data-average-rating=['"]([\d.]+)['"][^>]*data-number-of-reviews=['"](\d+)/i],
+    [/data-average-rating=['"]([\d.]+)['"][\s\S]{0,200}?data-number-of-reviews=['"](\d+)/i],
+    [/stamped-badge[^>]*data-rating=['"]([\d.]+)['"][^>]*data-count=['"](\d+)/i],
+    [/data-rating=['"]([\d.]+)['"][^>]*data-raters=['"](\d+)/i],
+    [/"ratingValue"\s*:\s*"?([\d.]+)"?[\s\S]{0,80}?"(?:reviewCount|ratingCount)"\s*:\s*"?(\d+)/i],
+  ];
+  for (const [re] of pats) { const m = html.match(re); if (m && +m[1] > 0 && +m[2] > 0) return { rating: +m[1], count: +m[2] }; }
+  return null;
+}
+async function addPageReviews(v, items) {
+  const cacheF = path.join(CACHE, `ratings-${v.id}.json`);
+  const cache = readJson(cacheF, {});
+  const WEEK = 7 * 864e5;
+  const todo = FROM_CACHE ? [] : items.filter((i) => i.rating == null && i.available).filter((i) => !(cache[i.id] && Date.now() - cache[i.id].t < WEEK)).slice(0, 40);
+  if (todo.length) log(`  reviews: fetching ${todo.length} product pages`);
+  for (const i of todo) {
+    const r = await get(i.url, { gap: 5000, tries: 3 });
+    cache[i.id] = { t: Date.now(), ...(r.body ? pageRating(r.body) || {} : {}) };
+  }
+  fs.writeFileSync(cacheF, JSON.stringify(cache));
+  for (const i of items) { const c = cache[i.id]; if (c?.rating) { i.rating = c.rating; i.reviewCount = c.count; } }
+}
+
+// ---------- Reddit buzz via PullPush archive ----------
+const POS = /\b(fire|gas|gassy|amazing|great|best|love|loved|legit|quality|terpy|flavorful|flavor|recommend|solid|clean|smooth|impressed|favorite|insane|loud|potent|top ?tier|s ?tier|goat|go-to|reliable|fast shipping|excellent|incredible|bomb|dank|happy)\b/gi;
+const NEG = /\b(mid|trash|scam|avoid|worst|bad|harsh|mold|moldy|disappointed|disappointing|overpriced|shady|garbage|never arrived|refund|weak|sketchy|burnt|ripped off|lab ?fake|fake coa|stale|seeds|seedy|hay|larf|terrible|awful|meh|lost package)\b/gi;
+// Pull every post (12 months) and comment (90 days) from the relevant subreddits via the
+// Arctic Shift archive, cache it, and match vendor names locally. Incremental after first run.
+const RSUBS = cfg.redditSubs || ['THCaFlower', 'hashrosin', 'hempflowers', 'Rosin'];
+let CORPUS = null;
+async function buildCorpus() {
+  const f = path.join(CACHE, 'reddit-corpus.json');
+  const c = readJson(f, { docs: {}, newest: {} });
+  const now = Math.floor(Date.now() / 1000);
+  for (const sub of RSUBS) {
+    for (const kind of ['posts', 'comments']) {
+      const key = `${sub}:${kind}`;
+      const floor = Math.max(now - (kind === 'posts' ? 365 : 90) * 86400, c.newest[key] || 0);
+      const fields = kind === 'posts' ? 'id,title,selftext,created_utc,score,subreddit' : 'id,body,created_utc,score,link_id,subreddit';
+      let before = now, newest = c.newest[key] || 0, n = 0, complete = false;
+      for (let page = 0; page < 80; page++) {
+        let r;
+        for (let t = 0; t < 4; t++) {
+          r = await get(`https://arctic-shift.photon-reddit.com/api/${kind}/search?subreddit=${sub}&after=${floor}&before=${before}&limit=100&sort=desc&fields=${fields}`, { json: true, gap: 1200 });
+          if (r.body && !r.body.error) break;
+          await sleep(8000);
+        }
+        const data = r.body?.data;
+        if (!Array.isArray(data)) break;
+        for (const d of data) {
+          const text = kind === 'posts' ? `${d.title} ${d.selftext || ''}` : d.body || '';
+          c.docs[d.id] = { sub: d.subreddit, t: d.created_utc, score: d.score || 0, text: text.slice(0, 2000), title: kind === 'posts' ? d.title : null,
+            link: kind === 'posts' ? `https://reddit.com/r/${d.subreddit}/comments/${d.id}` : `https://reddit.com/r/${d.subreddit}/comments/${(d.link_id || '').slice(3)}/_/${d.id}` };
+          newest = Math.max(newest, d.created_utc); n++;
+        }
+        if (data.length < 100) { complete = true; break; }
+        before = Math.min(...data.map((d) => d.created_utc));
+      }
+      if (complete) c.newest[key] = newest;
+      log(`  reddit ${key}: +${n}${complete ? '' : ' (partial)'}`);
+    }
+  }
+  const cutoff = now - 365 * 86400;
+  for (const [id, d] of Object.entries(c.docs)) if (d.t < cutoff) delete c.docs[id];
+  fs.writeFileSync(f, JSON.stringify(c));
+  return Object.values(c.docs);
+}
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+async function reddit(v) {
+  CORPUS ||= await buildCorpus();
+  const res = v.reddit.map((t) => new RegExp(`\\b${reEsc(t)}\\b`, 'i'));
+  const list = CORPUS.filter((d) => res.some((re) => re.test(d.text))).map((d) => {
+    const p = (d.text.match(POS) || []).length, n = (d.text.match(NEG) || []).length;
+    return { ...d, sent: (p - n) / (p + n + 2) };
+  });
+  const avg = list.length ? list.reduce((s, d) => s + d.sent, 0) / list.length : 0;
+  return {
+    mentions: list.length, sentiment: +avg.toFixed(3),
+    top: list.sort((a, b) => b.score - a.score).slice(0, 4).map(({ title, text, link, sub, score, sent }) => ({ title: strip(title || text).slice(0, 140), link, sub, score, sent: +sent.toFixed(2) })),
+    _docs: list,
+  };
+}
+const GENERIC = /\b(thca|hash|rosin|live|cold|cure|fresh|press|badder|batter|jam|sauce|diamonds?|flower|indoor|exotic|premium|tier|\d+(\.\d+)?\s*g|grams?|oz|eighth|cart|vape|disposable|pre-?rolls?|the|and|by|x|in-house|small batch|solventless|full melt|bubble|hash rosin|resin|sugar|smalls|1st|2nd|press)\b/gi;
+function strainKey(title) {
+  const k = title.toLowerCase().replace(/[|•–—:()[\]]/g, ' ').replace(GENERIC, ' ').replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return k.length >= 5 ? k : null;
+}
+
+// ---------- scoring ----------
+const TIER_PTS = { S: 40, 'A+': 36, A: 32, B: 20, C: 14, D: 8 };
+function bucket(i) {
+  const g = i.bestPpgGrams || 0;
+  if (i.category === 'flower') return g <= 3.5 ? 'small' : g <= 14 ? 'mid' : g <= 56 ? 'bulk' : 'wholesale';
+  if (i.category === 'preroll') return 'all';
+  // unpressed hash (bubble, ice water, dry sift, temple balls) is priced well below rosin
+  if (i.category === 'rosin' && /bubble|ice ?water|dry sift|temple ball|piatella|\bhash\b(?!.*rosin)/i.test(i.title) && !/rosin/i.test(i.title)) return 'hash';
+  return g <= 1 ? 'small' : g <= 3.5 ? 'mid' : 'bulk';
+}
+const median = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+// ---------- main ----------
+async function main() {
+  const prev = readJson(path.join(DIR, 'data.json'), { items: [], vendors: [] });
+  const vendors = cfg.vendors.filter((v) => !ONLY || ONLY.includes(v.id));
+  let items = [];
+  const vstat = [];
+  const redditCache = readJson(path.join(CACHE, 'reddit.json'), {});
+  for (const v of vendors) {
+    log(`== ${v.name} (${v.tier}, ${v.platform})`);
+    const st = { id: v.id, name: v.name, url: v.url, tier: v.tier, platform: v.platform, status: 'ok', count: 0, scrapedAt: new Date().toISOString() };
+    let vi = [];
+    if (REDDIT_ONLY) {
+      vi = prev.items.filter((i) => i.vendorId === v.id);
+      Object.assign(st, prev.vendors.find((x) => x.id === v.id) || {});
+    } else try {
+      let raw;
+      if (v.platform === 'browser') {
+        // catalog captured from the in-app browser after the user passes the site's bot check
+        const snap = readJson(path.join(DIR, 'captures', `browser-${v.id}.json`), null);
+        if (!snap?.products?.length) throw new Error('no browser capture yet; open the site in the app browser and pass the bot check');
+        raw = snap.products;
+        st.scrapedAt = snap.fetchedAt;
+        if (Date.now() - new Date(snap.fetchedAt) > 3 * 864e5) st.status = 'stale';
+      } else raw = FROM_CACHE && fs.existsSync(path.join(CACHE, `raw-${v.id}.json`)) ? readJson(path.join(CACHE, `raw-${v.id}.json`), []) : v.platform === 'shopify' ? await shopify(v) : v.platform === 'woo' ? await woo(v) : v.platform === 'square' ? await square(v) : await jsonld(v);
+      fs.writeFileSync(path.join(CACHE, `raw-${v.id}.json`), JSON.stringify(raw));
+      vi = raw.map((p) => makeItem(v, p)).filter(Boolean);
+      if (!NO_REVIEWS && v.platform === 'shopify') await addPageReviews(v, vi);
+      st.count = vi.length;
+      log(`  ${raw.length} products -> ${vi.length} THCa items`);
+    } catch (e) {
+      st.status = 'error'; st.error = e.message;
+      const old = prev.items.filter((i) => i.vendorId === v.id);
+      if (old.length) { vi = old.map((i) => ({ ...i, stale: true })); st.status = 'stale'; st.count = vi.length; st.scrapedAt = prev.vendors.find((x) => x.id === v.id)?.scrapedAt; }
+      log(`  FAILED: ${e.message}${old.length ? ` (kept ${old.length} cached items)` : ''}`);
+    }
+    if (!NO_REDDIT) {
+      try {
+        const rb = await reddit(v);
+        const keys = new Map();
+        for (const i of vi) { const k = strainKey(i.title); if (k) keys.set(i.id, k); }
+        for (const i of vi) {
+          const k = keys.get(i.id); if (!k) continue;
+          const hits = rb._docs.filter((d) => d.text.toLowerCase().includes(k));
+          if (hits.length) { i.redditMentions = hits.length; i.redditSent = +(hits.reduce((s, d) => s + d.sent, 0) / hits.length).toFixed(2); i.redditLinks = hits.slice(0, 3).map((d) => d.link); }
+        }
+        delete rb._docs;
+        redditCache[v.id] = { ...rb, t: Date.now() };
+        log(`  reddit: ${rb.mentions} mentions, sentiment ${rb.sentiment}`);
+      } catch (e) { log('  reddit failed', e.message); }
+    }
+    st.reddit = redditCache[v.id] ? { mentions: redditCache[v.id].mentions, sentiment: redditCache[v.id].sentiment, top: redditCache[v.id].top } : null;
+    vstat.push(st);
+    items.push(...vi);
+  }
+  fs.writeFileSync(path.join(CACHE, 'reddit.json'), JSON.stringify(redditCache));
+
+  // keep vendors not scraped this run (when using --only)
+  if (ONLY) { for (const pv of prev.vendors) if (!ONLY.includes(pv.id)) vstat.push(pv); items.push(...prev.items.filter((i) => !ONLY.includes(i.vendorId))); }
+
+  // medians of $/g from S/A in-stock items, per category+size bucket
+  const tierOf = Object.fromEntries(cfg.vendors.map((v) => [v.id, v.tier]));
+  const pinnedOf = Object.fromEntries(cfg.vendors.map((v) => [v.id, v.pinned]));
+  const medians = {};
+  for (const i of items) {
+    if (!i.bestPpg || !i.available || !['S', 'A+', 'A'].includes(tierOf[i.vendorId])) continue;
+    (medians[`${i.category}:${bucket(i)}`] ||= []).push(i.bestPpg);
+  }
+  // a size band needs 8+ S/A items for its own median; otherwise use the whole category's
+  const catAll = {};
+  for (const [k, arr] of Object.entries(medians)) (catAll[k.split(':')[0]] ||= []).push(...arr);
+  for (const k of Object.keys(medians)) medians[k] = +median(medians[k].length >= 8 ? medians[k] : catAll[k.split(':')[0]]).toFixed(2);
+  // hash has few S/A listings, and rosin prices would distort it: use every in-stock hash item instead
+  const hashAll = items.filter((i) => i.bestPpg && i.available && bucket(i) === 'hash').map((i) => i.bestPpg);
+  if (hashAll.length >= 5) medians['rosin:hash'] = +median(hashAll).toFixed(2);
+  const vr = Object.fromEntries(vstat.map((v) => [v.id, v.reddit]));
+  for (const i of items) {
+    i.tier = tierOf[i.vendorId];
+    i.pinned = !!pinnedOf[i.vendorId];
+    const med = medians[`${i.category}:${bucket(i)}`];
+    i.dealRatio = i.bestPpg && med ? +(med / i.bestPpg).toFixed(2) : null;
+    let q = TIER_PTS[i.tier] ?? 10;
+    if (i.hashmaker) q += 12; else if (i.thirdParty) q += 6;
+    if (i.rating && i.reviewCount) { const bay = (i.rating * i.reviewCount + 4.3 * 5) / (i.reviewCount + 5); q += Math.max(0, Math.min(20, ((bay - 3.5) / 1.5) * 20)); } else q += 8;
+    const r = vr[i.vendorId];
+    if (r?.mentions) q += r.sentiment * 25 * Math.min(1, r.mentions / 20);
+    if (i.redditMentions) q += Math.min(8, i.redditMentions * 2) * (i.redditSent >= 0 ? 1 : -1);
+    i.quality = Math.round(Math.max(0, Math.min(100, q * (100 / 80))));
+    i.value = i.dealRatio ? Math.round(i.quality * Math.sqrt(Math.max(0.5, Math.min(2, i.dealRatio)))) : null;
+    i.bDeal = i.tier === 'B' ? !!(i.dealRatio && i.dealRatio >= 1.33) : null;
+  }
+  const out = { generatedAt: new Date().toISOString(), medians, vendors: vstat, items };
+  fs.writeFileSync(path.join(DIR, 'data.json'), JSON.stringify(out));
+  log(`done: ${items.length} items from ${vstat.filter((v) => v.count).length}/${vstat.length} vendors`);
+}
+main().catch((e) => { console.error(e); process.exit(1); });

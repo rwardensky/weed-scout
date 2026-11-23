@@ -1,0 +1,32 @@
+{
+  "_notes": "tier: S | A+ | A | B. platform: shopify | woo | jsonld (sitemap + JSON-LD product pages) | blocked (Cloudflare challenge; needs a real browser). reddit: search terms for buzz.",
+  "redditSubs": ["THCaFlower", "hashrosin", "hempflowers"],
+  "solventlessBrands": ["Humboldt Organic Collective", "Beachside Solventless", "Puffin Solventless", "Happy Hash Cat", "Cold Water Chemist", "Moonshine Melts", "Professor Sift", "Trichadelics", "Dammit Bobby", "Farming Stoned", "Sugar Magnolia", "Hand Made Hash", "RCC", "Uncle's Farm", "Ogre Farms"],
+  "hashmakers": ["710 Labs", "The Bryantist", "Bryantist", "Hash Rosin Company", "Hash Rosin Co", "(HRC)", "Quasi Pharms", "Locked In", "710 Flower", "Stayfly", "Puffin", "Rosintech", "Nicot", "Coffee and Donuts", "Coffee & Donuts", "Papa's Select", "Lavender Farms", "Ethos", "Kalifornia Kollective", "Moxie", "Dablogic", "Hellavated"],
+  "vendors": [
+    {"id": "jgrows", "name": "Jgrows420", "url": "https://jgrows420.com", "tier": "S", "platform": "shopify", "reddit": ["jgrows", "jgrows420"]},
+    {"id": "kache", "name": "Kache", "url": "https://kachethca.com", "tier": "S", "platform": "woo", "reddit": ["kache"]},
+    {"id": "simplymary", "name": "Simply Mary", "url": "https://simplymary.co", "tier": "S", "platform": "shopify", "reddit": ["simply mary", "simplymary"]},
+    {"id": "war", "name": "White Ash Reserve", "url": "https://whiteashreserve.com", "tier": "S", "platform": "browser", "reddit": ["white ash reserve", "whiteashreserve"]},
+    {"id": "cannahaus", "name": "Canna Haus Farms", "url": "https://cannahausfarms.com", "tier": "A", "platform": "shopify", "reddit": ["canna haus", "cannahaus"]},
+    {"id": "crysp", "name": "Crysp CO", "url": "https://shopcrysp.com", "tier": "A", "platform": "browser", "reddit": ["crysp"]},
+    {"id": "dailyhi", "name": "Daily Hi", "url": "https://www.daily-hi.com", "tier": "A", "platform": "shopify", "reddit": ["daily hi", "daily-hi", "daily high club"]},
+    {"id": "purecanna", "name": "Pure Canna Co", "url": "https://purecanna.co", "tier": "A", "platform": "shopify", "reddit": ["pure canna", "purecanna"]},
+    {"id": "quantum", "name": "Quantum Exotics", "url": "https://www.quantumexotics.com", "tier": "A+", "platform": "jsonld", "reddit": ["quantum exotics"]},
+    {"id": "roots", "name": "Roots & Releaf", "url": "https://www.rootsandreleaf.com", "tier": "A", "platform": "square", "squareUser": "148971725", "squareSite": "920798371790063824", "reddit": ["roots and releaf", "roots & releaf", "rootsandreleaf"]},
+    {"id": "sherlocks", "name": "Sherlock's Glass", "url": "https://sherlocksglass.com", "tier": "A", "platform": "woo", "reddit": ["sherlocks", "sherlock's glass", "the sesh"]},
+    {"id": "wlx", "name": "White Label Exotics", "url": "https://shopwlx.com", "tier": "A", "platform": "woo", "reddit": ["white label exotics", "wlx"]},
+    {"id": "caliblaise", "name": "Cali Blaise", "url": "https://caliblaise.net", "tier": "B", "platform": "shopify", "reddit": ["cali blaise", "caliblaise"]},
+    {"id": "diesel", "name": "Diesel Hemp", "url": "https://dieselhemp.com", "tier": "B", "platform": "shopify", "reddit": ["diesel hemp"]},
+    {"id": "hemphop", "name": "Hemp Hop", "url": "https://hemphop.co", "tier": "B", "platform": "shopify", "reddit": ["hemp hop", "hemphop"]},
+    {"id": "luckyelk", "name": "Lucky Elk", "url": "https://luckyelk.com", "tier": "B", "platform": "shopify", "reddit": ["lucky elk"]},
+    {"id": "hellomary", "name": "Shop Hello Mary", "url": "https://shophellomary.com", "tier": "B", "platform": "woo", "reddit": ["hello mary", "shophellomary"]},
+    {"id": "shh", "name": "Southern Harvest Hemp", "url": "https://southernharvesthemp.com", "tier": "B", "platform": "shopify", "reddit": ["southern harvest"]},
+    {"id": "pinepark", "name": "Pine Park", "url": "https://pinepark.shop", "tier": "B", "platform": "shopify", "reddit": ["pine park", "pinepark"]},
+    {"id": "wellcrafted", "name": "Well Crafted Canna", "url": "https://www.wellcraftedcanna.com", "tier": "B", "platform": "jsonld", "reddit": ["well crafted canna", "wellcrafted"]},
+    {"id": "wnc", "name": "WNC CBD", "url": "https://wnc-cbd.com", "tier": "B", "platform": "jsonld", "reddit": ["wnc cbd", "wnc-cbd"]},
+    {"id": "phc", "name": "Preston Herb Co", "url": "https://www.prestonherbco.com", "tier": "B", "platform": "jsonld", "reddit": ["preston herb", "phc"]},
+    {"id": "arete", "name": "Arete", "url": "https://arete.shop", "tier": "B", "platform": "jsonld", "reddit": ["arete"]},
+    {"id": "legendary", "name": "Leet Legendary Hemp", "url": "https://legendarythcacbd.com", "tier": "D", "pinned": true, "platform": "woo", "fetcher": "curl", "reddit": ["legendary hemp", "leet legendary", "legendarythcacbd"]}
+  ]
+}
