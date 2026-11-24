@@ -1,5 +1,13 @@
 # Capturing bot-protected vendors (White Ash Reserve, Crysp)
 
+**Easiest: the capture bookmark** (any phone or computer, no Claude needed). Set it up at
+https://rwardensky.github.io/weed-scout/capture.html: connect a GitHub token once per browser
+(fine-grained, weed-scout only, Contents read/write), add the bookmark, then tap it on either store
+after passing its check. It commits `captures/browser-<id>.json` (and Crysp photo copies to
+`images/crysp/`) straight to GitHub, which starts a refresh. Source: `bookmarklet.js` + `capture.html`.
+
+The manual route below still works.
+
 These two stores sit behind a Cloudflare check that blocks the cloud scraper. To refresh them:
 
 1. Open the store in Chrome and pass the security check.
