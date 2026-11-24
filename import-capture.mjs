@@ -22,7 +22,8 @@ const products = fs.readFileSync(file, 'utf8').trim().split(/\r?\n/).filter(Bool
     brand: BRANDS[first] || null,
     url: `${v.url}/${urlPath || 'product/'}${handle}/`,
     rating: rating || null, reviewCount: reviewCount || null,
-    image: img ? (img.startsWith('http') ? img : `${v.url}/wp-content/uploads/${img}`) : null,
+    // "images/..." = a copy saved in this repo (for stores whose images block other sites)
+    image: img ? (/^(https?:|images\/)/.test(img) ? img : `${v.url}/wp-content/uploads/${img}`) : null,
     variants: (vars || '').split(';').map((x) => {
       const [label, price, compareAt, avail] = x.split('|');
       return { label: (label || '').replace(/^strains?:\s*/i, ''), price: +price, compareAt: +compareAt || null, available: avail === '1' };

@@ -6,9 +6,9 @@ on:
     - cron: "37 10 * * *" # ~5:37am US Eastern
     - cron: "37 22 * * *" # ~5:37pm US Eastern (backup if the morning run is skipped)
   workflow_dispatch: # "Run workflow" button on the Actions tab
-  push: # run right away when this schedule file changes
+  push: # run right away when this schedule file or a WAR/Crysp capture changes
     branches: [main]
-    paths: [.github/workflows/refresh.yml]
+    paths: [.github/workflows/refresh.yml, captures/**, images/**]
 
 permissions:
   contents: write
