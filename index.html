@@ -88,6 +88,7 @@ main { padding-block: 18px 40px; display: flex; flex-direction: column; gap: 28p
 .deal { font: 600 13px var(--mono); padding: 2px 8px; border-radius: 6px; display: inline-block }
 .deal.good { background: var(--good-soft); color: var(--good) } .deal.bad { background: var(--bad-soft); color: var(--bad) } .deal.even { background: var(--sunk); color: var(--muted) }
 .q { display: flex; flex-direction: column; align-items: flex-end; gap: 4px }
+.qlbl { display: inline !important; margin-left: 4px; font-size: 11px }
 .meter { width: 90px; height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden }
 .meter i { display: block; height: 100%; background: var(--accent) }
 .details { padding: 4px 14px 16px calc(30px + 72px + 42px); display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; font-size: 13px }
@@ -113,6 +114,7 @@ input[type=number] { width: 90px; font: 14px var(--mono); color: var(--fg); back
 .carthead { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px }
 .carthead b { font-family: var(--mono) }
 .cmpbox { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; margin-top: 2px }
+.cmpbar[hidden] { display: none }
 .cmpbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 8; display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--accent); border-radius: 999px; padding: 6px 8px 6px 16px; box-shadow: 0 6px 24px rgb(0 0 0 / .25); font-size: 14px }
 .cmpbar .more { padding: 6px 14px }
 dialog#cmpDlg { width: min(1000px, calc(100vw - 32px)); max-height: calc(100vh - 48px); border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--fg); padding: 16px }
@@ -488,7 +490,7 @@ function render() {
       </div>
       ${priceCell(i)}
       <div class="num dcell">${dealBadge(dr(i))}</div>
-      <div class="q"><span class="num">${myQ(i)}</span><div class="meter"><i style="width:${myQ(i)}%"></i></div></div>
+      <div class="q" title="Quality score out of 100: store tier, hashmaker, reviews, Reddit, your ratings"><span class="num">${myQ(i)}<small class="qlbl">quality /100</small></span><div class="meter"><i style="width:${myQ(i)}%"></i></div></div>
     </div>${open ? detailsHtml(i) : ''}</div>`;
   }).join('') + (rows.length > S.limit ? `<div style="display:flex;padding:12px"><button class="more" id="more">Show 60 more</button></div>` : '');
   $('#more')?.addEventListener('click', () => { S.limit += 60; render(); });

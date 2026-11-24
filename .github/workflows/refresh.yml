@@ -22,7 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
+      # always the newest main (code + last data), not the commit that queued the run
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-node@v4
         with:
@@ -59,8 +62,14 @@ jobs:
           git config user.name "weed-scout-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data.json history.json
-          [ -f alerts-state.json ] && git add alerts-state.json
+          if [ -f alerts-state.json ]; then git add alerts-state.json; fi
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
           git commit -m "Daily refresh $(date -u +%Y-%m-%d)"
-          git pull --rebase origin ${{ github.ref_name }}
-          git push
+          # if something else landed meanwhile (a capture, a watchlist save, another refresh),
+          # replay on top of it; for the generated files this run's fresh copy wins
+          for try in 1 2 3; do
+            if git pull --rebase -X theirs origin main && git push origin HEAD:main; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep 10
+          done
+          exit 1
