@@ -31,10 +31,23 @@ const events = [];
 const add = (key, ev) => { if (!state.sent[key]) events.push({ key, ...ev }); };
 const items = new Set(watch.items || []);
 const strains = new Set(watch.strains || []);
+const targets = watch.targets || {};
+const ratings = watch.ratings || {};
+const purchases = watch.purchases || [];
+// stores that won't ship to you: their policy lists your state, or you marked them that way
+const myState = watch.settings?.state || 'VA';
+const vShip = watch.settings?.vendorShip || {};
+const shipsToMe = (vid) => vShip[vid] ?? !(data.vendors.find((v) => v.id === vid)?.noShip || []).includes(myState);
+const pay = (i) => i.codePpg || i.effPpg; // what you'd pay per gram, with a public code when there is one
+const payTxt = (i) => (i.codePpg ? `${money(i.codePpg)}/g with ${i.code ? `code ${i.code}` : 'sale'}` : ppg(i));
 
 for (const i of data.items) {
   if (i.stale) continue;
+  if (!shipsToMe(i.vendorId)) continue;
   const where = `${vname[i.vendorId] || i.vendorId}`;
+  // your price target
+  const tgt = targets[i.id];
+  if (tgt && i.available && pay(i) && pay(i) <= tgt) add(`target:${i.id}:${pay(i)}`, { prio: 5, tag: 'dart', title: `Hit your $${tgt}/g target`, body: `${i.title} at ${where}: ${payTxt(i)}`, url: i.url });
   const starred = items.has(i.id);
   const strainHit = i.group && strains.has(i.group);
   if (starred || strainHit) {
@@ -46,8 +59,35 @@ for (const i of data.items) {
   }
   // big deals worth knowing about even if not starred
   const topTier = ['S', 'A+', 'A'].includes(i.tier);
-  if (topTier && i.available && i.dealRatio >= 1.43 && i.quality >= 60 && ((i.isNew && recent(i.isNew, 1)) || (i.drop && recent(i.drop.at, 1))))
+  if (topTier && i.available && ratings[i.id]?.r !== -1 && i.dealRatio >= 1.43 && i.quality >= 60 && ((i.isNew && recent(i.isNew, 1)) || (i.drop && recent(i.drop.at, 1))))
     add(`deal:${i.id}:${i.effPpg}`, { prio: 3, tag: 'fire', title: `${Math.round((1 - 1 / i.dealRatio) * 100)}% under median`, body: `${i.title} at ${where} (${i.tier}): ${ppg(i)}, quality ${i.quality}`, url: i.url, deal: true });
+}
+
+// running low: from your purchase log, when you usually rebuy each type
+const CATN = { rosin: 'rosin', flower: 'flower', concentrate: 'concentrates', vape: 'vapes', preroll: 'pre-rolls' };
+const day = (d) => new Date(d + 'T12:00:00Z').getTime();
+for (const cat of Object.keys(CATN)) {
+  const ps = purchases.filter((p) => p.category === cat).sort((a, b) => a.date.localeCompare(b.date));
+  if (ps.length < 2) continue;
+  const gaps = ps.slice(1).map((p, n) => (day(p.date) - day(ps[n].date)) / 864e5).filter((g) => g > 0);
+  if (!gaps.length) continue;
+  const every = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+  const last = ps.at(-1), due = day(last.date) + every * 864e5;
+  if (Date.now() >= due - 3 * 864e5) {
+    const picks = data.items.filter((i) => i.category === cat && i.available && !i.stale && shipsToMe(i.vendorId) && ratings[i.id]?.r !== -1 && (i.valueCode || i.value) && (i.tier !== 'B' || i.bDeal) && !i.pinned)
+      .sort((a, b) => (b.valueCode || b.value) - (a.valueCode || a.value)).slice(0, 3);
+    add(`runout:${cat}:${last.date}`, { prio: 3, tag: 'hourglass', title: `Running low on ${CATN[cat]}?`, body: `You usually rebuy every ${Math.round(every)} days; last was ${last.date}. Top picks: ` + picks.map((i) => `${i.title} at ${vname[i.vendorId]} (${payTxt(i)})`).join('; '), url: picks[0]?.url || SITE });
+  }
+}
+
+// drop-day heads-up: morning run only, for stores you buy from, star or like, plus S tier
+const nyDay = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'America/New_York' }).format(new Date());
+if (new Date().getUTCHours() < 16) {
+  const mine = new Set([...items, ...Object.keys(ratings).filter((k) => ratings[k].r > 0), ...purchases.map((p) => p.id)].map((id) => String(id).split(':')[0]));
+  for (const v of data.vendors) {
+    if (v.dropDay?.day !== nyDay || !shipsToMe(v.id) || !(mine.has(v.id) || v.tier === 'S')) continue;
+    add(`dropday:${v.id}:${today}`, { prio: 2, tag: 'calendar', title: `${v.name} usually drops on ${nyDay}s`, body: `${v.dropDay.share}% of its last ${v.dropDay.dates} drop days were ${nyDay}s. Worth a look today.`, url: v.url });
+  }
 }
 
 // keep it calm: personal alerts first, at most 4 big deals, and bundle when there are lots
@@ -59,7 +99,7 @@ if (toSend.length > 6) {
 }
 
 const html = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-const EMOJI = { chart_with_downwards_trend: '📉', package: '📦', moneybag: '💰', seedling: '🌱', fire: '🔥', bell: '🔔', white_check_mark: '✅' };
+const EMOJI = { chart_with_downwards_trend: '📉', package: '📦', moneybag: '💰', seedling: '🌱', fire: '🔥', bell: '🔔', white_check_mark: '✅', dart: '🎯', hourglass: '⏳', calendar: '📅' };
 async function send(e) {
   if (DRY || !TOPIC) { console.log(`[${DRY ? 'dry-run' : 'no alert channel set'}] ${e.title} | ${e.body}`); return true; }
   if (TOPIC === 'telegram') {
@@ -96,7 +136,7 @@ if (digestDue) {
   const short = (s, n = 46) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
   const under = (i) => { const p = i.dealRatio ? Math.round((1 - 1 / i.dealRatio) * 100) : 0; return p >= 5 ? `${p}% under` : ''; };
   const line = (i) => ({ t: `${short(i.title)} · ${vname[i.vendorId]} · ${ppg(i)} ${under(i) && `(${under(i)})`}`, url: i.url });
-  const live = data.items.filter((i) => i.available && !i.stale && i.value && !i.pinned && (i.tier !== 'B' || i.bDeal));
+  const live = data.items.filter((i) => i.available && !i.stale && i.value && !i.pinned && (i.tier !== 'B' || i.bDeal) && shipsToMe(i.vendorId) && ratings[i.id]?.r !== -1);
   const sections = [];
   for (const [k, label] of Object.entries(CAT)) {
     const top = live.filter((i) => i.category === k).sort((a, b) => b.value - a.value).slice(0, 3);

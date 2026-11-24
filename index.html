@@ -112,6 +112,16 @@ input[type=number] { width: 90px; font: 14px var(--mono); color: var(--fg); back
 .cart { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; display: flex; flex-direction: column; gap: 6px }
 .carthead { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px }
 .carthead b { font-family: var(--mono) }
+.cmpbox { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; margin-top: 2px }
+.cmpbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 8; display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--accent); border-radius: 999px; padding: 6px 8px 6px 16px; box-shadow: 0 6px 24px rgb(0 0 0 / .25); font-size: 14px }
+.cmpbar .more { padding: 6px 14px }
+dialog#cmpDlg { width: min(1000px, calc(100vw - 32px)); max-height: calc(100vh - 48px); border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--fg); padding: 16px }
+dialog#cmpDlg::backdrop { background: rgb(0 0 0 / .5) }
+.dlghead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px }
+table.cmp { min-width: 560px } table.cmp th { width: 130px } table.cmp td { min-width: 180px } table.cmp .thumb { width: 64px; height: 64px; margin-bottom: 6px }
+[data-vship][aria-pressed="true"] { font-weight: 700; text-decoration: none; background: var(--accent-soft); border-radius: 4px; padding: 0 4px }
+.buy input[type=number] { width: 80px }
+input[type=date] { font: 13px var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px }
 .empty { padding: 40px 16px; text-align: center; color: var(--muted) }
 h2 { font: 600 19px var(--display); margin: 0 0 4px }
 .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface) }
@@ -179,6 +189,8 @@ details summary { cursor: pointer; color: var(--accent) }
       <span class="lbl">Show</span>
       <button class="chip" id="starred" aria-pressed="false">★ My list</button>
       <button class="chip" id="moved" aria-pressed="false">Drops, restocks &amp; new</button>
+      <button class="chip" id="shipsMe" aria-pressed="true">Ships to <span id="stateName">Virginia</span></button>
+      <select id="myState" aria-label="Your state"></select>
       <button class="chip" id="codes" aria-pressed="true" title="Use each store's public promo code or sitewide sale in prices and ranking">Apply promo codes</button>
       <button class="chip" id="instock" aria-pressed="true">In stock only</button>
       <button class="chip" id="hmonly" aria-pressed="false">Third-party hashmakers</button>
@@ -206,8 +218,12 @@ details summary { cursor: pointer; color: var(--accent) }
     <div id="cartOut"></div>
   </section>
   <section>
+    <h2>My stash</h2>
+    <div id="stash"></div>
+  </section>
+  <section>
     <h2>Vendor coverage</h2>
-    <p class="note">What the last refresh pulled from each site, with shipping terms and promo codes read from the store's own pages. White Ash Reserve and Crysp update when you run the <a href="capture.html">capture bookmark</a> on their sites. Reddit counts are posts and comments from the last 12 months in cannabis subreddits.</p>
+    <p class="note">What the last refresh pulled from each site, with shipping terms and promo codes read from the store's own pages. "Ships to you" comes from the store's policy when it names your state; mark stores yourself once you know (✓ or ✗). Reliability and drop days build up from the daily price history. White Ash Reserve and Crysp update when you run the <a href="capture.html">capture bookmark</a> on their sites. Reddit counts are posts and comments from the last 12 months in cannabis subreddits.</p>
     <div class="tbl-wrap"><table id="vtbl"></table></div>
   </section>
   <section>
@@ -225,9 +241,12 @@ details summary { cursor: pointer; color: var(--accent) }
   </section>
 </main>
 
+<div class="cmpbar" id="cmpbar" hidden><span></span><button class="more" id="cmpOpen">Compare</button><button class="linkbtn" id="cmpClear">Clear</button></div>
+<dialog id="cmpDlg" aria-labelledby="cmpTitle"><div class="dlghead"><h2 id="cmpTitle">Compare</h2><button class="more" id="cmpClose">Close</button></div><div id="cmpBody" class="tbl-wrap"></div></dialog>
+
 <script>
 const CATS = { rosin: 'Rosin & hash', flower: 'Flower', concentrate: 'Other concentrates', vape: 'Vapes', preroll: 'Pre-rolls' };
-const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, codes: true, limit: 60, open: new Set() };
+const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, codes: true, shipsMe: true, limit: 60, open: new Set(), compare: new Set() };
 let D = null, V = {}, G = {};
 const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
 { const saved = ls.get('scout', null); if (saved) { S.sort = saved.sort || S.sort; if (saved.cats) S.cats = new Set(saved.cats); if (saved.codes === false) S.codes = false; } }
@@ -253,10 +272,20 @@ const moveDate = (i) => [i.drop?.at, i.restocked, i.isNew].filter(Boolean).sort(
 // ---------- watchlist: stars on products and strains, synced to watchlist.json when this browser has the capture token ----------
 const REPO = 'rwardensky/weed-scout';
 const token = () => { try { return localStorage.getItem('ws-token') || ''; } catch { return ''; } };
-let W = ls.get('ws-watch', { items: [], strains: [], ratings: {}, updatedAt: 0 });
-W.items = new Set(W.items); W.strains = new Set(W.strains); W.ratings ||= {};
+const fromPlain = (p) => ({ items: new Set(p.items || []), strains: new Set(p.strains || []), ratings: p.ratings || {}, targets: p.targets || {}, purchases: p.purchases || [], settings: { state: 'VA', vendorShip: {}, ...(p.settings || {}) }, updatedAt: p.updatedAt || 0 });
+let W = fromPlain(ls.get('ws-watch', {}));
 let remoteSha = null, saveTimer = null;
-const plainW = () => ({ items: [...W.items].sort(), strains: [...W.strains].sort(), ratings: W.ratings, updatedAt: W.updatedAt });
+const plainW = () => ({ items: [...W.items].sort(), strains: [...W.strains].sort(), ratings: W.ratings, targets: W.targets, purchases: W.purchases, settings: W.settings, updatedAt: W.updatedAt });
+function changed() { W.updatedAt = Date.now(); ls.set('ws-watch', plainW()); vendorAffinity(); queueSave(); render(); syncNote(); }
+// does this store ship to your state? Your own mark wins; otherwise the store's policy page
+const STATE_NAMES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
+function shipStatus(vid) {
+  const mine = W.settings.vendorShip[vid];
+  if (mine === true) return 'yes';
+  if (mine === false) return 'no';
+  return (V[vid]?.noShip || []).includes(W.settings.state) ? 'policy-no' : 'unknown';
+}
+const shipsToMe = (vid) => !['no', 'policy-no'].includes(shipStatus(vid));
 
 // ---------- personal view: promo codes and your ratings change prices and scores on this page ----------
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -283,7 +312,7 @@ async function loadRemoteWatch() {
     if (!r.ok) return;
     const j = await r.json(); remoteSha = j.sha;
     const remote = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g, '')))));
-    if ((remote.updatedAt || 0) >= (W.updatedAt || 0)) { W = { items: new Set(remote.items || []), strains: new Set(remote.strains || []), ratings: remote.ratings || {}, updatedAt: remote.updatedAt || 0 }; ls.set('ws-watch', plainW()); vendorAffinity(); if (D) render(); }
+    if ((remote.updatedAt || 0) >= (W.updatedAt || 0)) { W = fromPlain(remote); ls.set('ws-watch', plainW()); vendorAffinity(); if (D) { render(); renderVendors(); renderStash(); syncState(); } }
     else if (token()) queueSave();
   } catch {}
 }
@@ -301,7 +330,7 @@ async function saveRemoteWatch(retry = true) {
 }
 function toggleWatch(kind, key) {
   const set = W[kind]; set.has(key) ? set.delete(key) : set.add(key);
-  W.updatedAt = Date.now(); ls.set('ws-watch', plainW()); queueSave(); render(); syncNote();
+  changed();
 }
 function setRating(id, r, note) {
   const cur = W.ratings[id];
@@ -309,10 +338,17 @@ function setRating(id, r, note) {
   else if (cur?.r === r) r = 0;                          // tapping the same thumb clears it
   if (!r && !(note ?? cur?.note)) delete W.ratings[id];
   else W.ratings[id] = { r: r || 0, note: (note ?? cur?.note ?? '').slice(0, 300), t: new Date().toISOString().slice(0, 10) };
-  W.updatedAt = Date.now(); ls.set('ws-watch', plainW()); vendorAffinity(); queueSave(); render(); syncNote();
+  changed();
+}
+function setTarget(id, v) { if (v > 0) W.targets[id] = +(+v).toFixed(2); else delete W.targets[id]; changed(); }
+function logPurchase(i, variantIdx, price, date) {
+  const x = i.variants[variantIdx];
+  W.purchases.push({ id: i.id, title: i.title, vendorId: i.vendorId, category: i.category, label: x.label, grams: x.grams || null, price: +price, date });
+  W.purchases.sort((a, b) => b.date.localeCompare(a.date));
+  changed(); renderStash();
 }
 function syncNote(err) {
-  const n = W.items.size + W.strains.size + Object.keys(W.ratings).length;
+  const n = W.items.size + W.strains.size + Object.keys(W.ratings).length + Object.keys(W.targets).length + W.purchases.length;
   const el = $('#syncnote');
   if (err) { el.innerHTML = `<div class="banner">${esc(err)}</div>`; return; }
   el.innerHTML = n && !token() ? `<div class="banner">Your ★ list is saved on this device only. Connect GitHub on the <a href="capture.html">capture page</a> to sync it across devices and get phone alerts for it.</div>` : '';
@@ -330,6 +366,7 @@ function visible() {
     }
     if (!S.cats.has(i.category)) return false;
     if (S.vendor && i.vendorId !== S.vendor) return false;
+    if (S.shipsMe && !shipsToMe(i.vendorId)) return false;
     if (S.instock && !i.available) return false;
     if (S.hm && !(i.hashmaker || i.thirdParty)) return false;
     if (S.sized && !pp(i)) return false;
@@ -402,12 +439,23 @@ function detailsHtml(i) {
   return `<div class="details" id="d-${esc(i.id)}">
     <div><h3>Sizes</h3><table>${sizes}</table><p class="note" style="margin:6px 0 0">${esc(v.name)}: ${ship}${promos ? `<br>${promos}` : ''}</p>
       ${addon ? `<p class="note addon">${addon}</p>` : ''}
-      ${i.thca ? `<p class="note">${i.thca}% THCa as listed by the store · ${mgPer$(i) ?? '—'} mg THCa per dollar</p>` : ''}</div>
+      ${i.thca ? `<p class="note">${i.thca}% THCa as listed by the store · ${mgPer$(i) ?? '—'} mg THCa per dollar</p>` : ''}
+      ${labLine(i)}</div>
     <div><h3>Your rating</h3>
       <div class="row"><button class="watchbtn" data-rate="1" data-id="${esc(i.id)}" aria-pressed="${my.r > 0}">👍 Liked it</button><button class="watchbtn" data-rate="-1" data-id="${esc(i.id)}" aria-pressed="${my.r < 0}">👎 Not for me</button></div>
       <label class="note" for="n-${esc(i.id)}" style="display:block;margin-top:8px">Notes</label>
       <textarea class="mynote" id="n-${esc(i.id)}" data-note="${esc(i.id)}" rows="2" maxlength="300" placeholder="Taste, effect, would you rebuy?">${esc(my.note || '')}</textarea>
-      <p class="note">Your thumbs move this product ±, and nudge everything from ${esc(v.name)}${VA[i.vendorId] ? ` (you're ${VA[i.vendorId] > 0 ? 'positive' : 'negative'} on them so far)` : ''}.</p></div>
+      <p class="note">Your thumbs move this product ±, and nudge everything from ${esc(v.name)}${VA[i.vendorId] ? ` (you're ${VA[i.vendorId] > 0 ? 'positive' : 'negative'} on them so far)` : ''}.</p>
+      <h3 style="margin-top:12px">Price alert</h3>
+      <div class="row"><label class="note" for="t-${esc(i.id)}">Telegram me at or under $</label><input type="number" id="t-${esc(i.id)}" data-target="${esc(i.id)}" min="1" step="0.5" value="${W.targets[i.id] ?? ''}" placeholder="${pp(i) ? Math.floor(pp(i) * 0.85) : ''}" inputmode="decimal"><span class="note">/g</span></div>
+      <h3 style="margin-top:12px">I bought this</h3>
+      <div class="row buy" data-buy="${esc(i.id)}">
+        <select aria-label="Size bought">${i.variants.map((x, k) => x.price > 0 ? `<option value="${k}" data-price="${x.price}" ${x.label === i.shipLabel ? 'selected' : ''}>${esc(x.grams ? x.grams + 'g' : x.label)} · ${money(x.price)}</option>` : '').join('')}</select>
+        <label class="note">Paid $<input type="number" class="bprice" min="0" step="0.01" value="${(i.variants.find((x) => x.label === i.shipLabel) || i.variants[0]).price}" inputmode="decimal"></label>
+        <input type="date" class="bdate" value="${new Date().toISOString().slice(0, 10)}" aria-label="Date bought">
+        <button class="watchbtn" data-logbuy="${esc(i.id)}">Log it</button>
+      </div>
+      ${W.purchases.some((p) => p.id === i.id) ? `<p class="note">You've logged this ${W.purchases.filter((p) => p.id === i.id).length}×, last on ${W.purchases.find((p) => p.id === i.id).date}.</p>` : ''}</div>
     <div><h3>Price history</h3>${hist || `<p class="note">Tracking since ${i.firstSeen ? shortDate(i.firstSeen) : 'today'}; no change yet.</p>`}</div>
     <div><h3>Same strain elsewhere</h3>${alts.length ? alts.map((a) => `<div class="alt"><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(V[a.vendorId]?.name || a.vendorId)} <span class="pill ${tierCls(a.tier)}">${esc(a.tier)}</span></a><span>${a.effPpg ? money(a.effPpg) + '/g' : money(a.minPrice)}</span></div>`).join('') : '<p class="note">Not listed at other tracked vendors right now.</p>'}
       ${i.group ? `<button class="watchbtn" data-strain="${esc(i.group)}" aria-pressed="${W.strains.has(i.group)}">${W.strains.has(i.group) ? '★ Watching this strain' : '☆ Watch this strain'}</button>` : ''}</div>
@@ -428,7 +476,7 @@ function render() {
     const open = S.open.has(i.id);
     const starred = W.items.has(i.id);
     return `<div class="entry"><div class="item">
-      <div class="lead"><span class="rank">${n + 1}</span><button class="star" data-star="${esc(i.id)}" aria-pressed="${starred}" aria-label="${starred ? 'Unstar' : 'Star'} ${esc(i.title)}">${starred ? '★' : '☆'}</button></div>
+      <div class="lead"><span class="rank">${n + 1}</span><button class="star" data-star="${esc(i.id)}" aria-pressed="${starred}" aria-label="${starred ? 'Unstar' : 'Star'} ${esc(i.title)}">${starred ? '★' : '☆'}</button><input type="checkbox" class="cmpbox" data-cmp="${esc(i.id)}" ${S.compare.has(i.id) ? 'checked' : ''} aria-label="Compare ${esc(i.title)}" title="Compare"></div>
       ${i.image ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" tabindex="-1"><img class="thumb" loading="lazy" referrerpolicy="no-referrer" src="${esc(thumb(i.image))}" data-full="${esc(i.image)}" alt="${esc(i.title)}" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb'}))}"></a>` : '<div class="thumb"></div>'}
       <div class="name">
         <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a>
@@ -445,13 +493,29 @@ function render() {
   }).join('') + (rows.length > S.limit ? `<div style="display:flex;padding:12px"><button class="more" id="more">Show 60 more</button></div>` : '');
   $('#more')?.addEventListener('click', () => { S.limit += 60; render(); });
 }
-$('#list').addEventListener('change', (e) => { const n = e.target.closest('[data-note]'); if (n) setRating(n.dataset.note, undefined, n.value.trim()); });
+$('#list').addEventListener('change', (e) => {
+  const n = e.target.closest('[data-note]'); if (n) return setRating(n.dataset.note, undefined, n.value.trim());
+  const t = e.target.closest('[data-target]'); if (t) return setTarget(t.dataset.target, +t.value);
+  const sel = e.target.closest('.buy select'); if (sel) sel.parentElement.querySelector('.bprice').value = sel.selectedOptions[0].dataset.price;
+  const cmp = e.target.closest('[data-cmp]'); if (cmp) { cmp.checked ? S.compare.add(cmp.dataset.cmp) : S.compare.delete(cmp.dataset.cmp); renderCompareBar(); }
+});
 $('#list').addEventListener('click', (e) => {
+  const lb = e.target.closest('[data-logbuy]');
+  if (lb) { const box = lb.closest('.buy'), i = D.items.find((x) => x.id === lb.dataset.logbuy); logPurchase(i, +box.querySelector('select').value, box.querySelector('.bprice').value, box.querySelector('.bdate').value); return; }
   const rt = e.target.closest('[data-rate]'); if (rt) return setRating(rt.dataset.id, +rt.dataset.rate);
   const st = e.target.closest('[data-star]'); if (st) return toggleWatch('items', st.dataset.star);
   const ws = e.target.closest('[data-strain]'); if (ws) return toggleWatch('strains', ws.dataset.strain);
   const op = e.target.closest('[data-open]'); if (op) { const id = op.dataset.open; S.open.has(id) ? S.open.delete(id) : S.open.add(id); render(); }
 });
+function labLine(i) {
+  const lab = V[i.vendorId]?.labPage;
+  if (i.coa) {
+    const old = i.coa.date && (Date.now() - new Date(i.coa.date)) / 864e5 > 183;
+    return `<p class="note">🧪 <a href="${esc(i.coa.url)}" target="_blank" rel="noopener">Lab report</a>${i.coa.date ? ` · tested ${shortDate(i.coa.date)} ${new Date(i.coa.date).getFullYear()}` : ''}${old ? ' <span class="tag sale">over 6 months old</span>' : ''}</p>`;
+  }
+  return lab ? `<p class="note">🧪 No report linked on this product; see the store's <a href="${esc(lab)}" target="_blank" rel="noopener">lab results page</a>.</p>` : '';
+}
+
 // ---------- shipping, codes and carts ----------
 function shipFor(vid) {
   const sh = V[vid]?.shipping || {};
@@ -523,17 +587,72 @@ function renderCart() {
   const v = V[vid]; if (!v) return;
   const { carts, sh, promo, n } = buildCarts(vid, budget, onlyMine, cat);
   const terms = `${sh.freeOver != null ? `Free shipping at $${sh.freeOver}` : 'No free-shipping line'}${sh.freeOver != null || sh.cost ? `, otherwise $${sh.cost}${sh.est ? ' (estimated)' : ''}` : ''}.${promo ? ` Applying ${promo.code ? `code <code class="promo">${esc(promo.code)}</code>` : 'the sale'} (−${promo.pct}%).` : ''}`;
-  $('#cartOut').innerHTML = `<p class="note">${esc(v.name)}: ${terms} ${esc(CATS[cat])} only${onlyMine ? ', from your list' : ''}; skips anything you thumbed down.</p>` + (carts.length ? carts.map((c, k) => `
+  const warn = shipsToMe(vid) ? '' : `<p class="banner">${esc(v.name)} ${shipStatus(vid) === 'no' ? 'is marked as not shipping' : 'says it doesn\'t ship THCa'} to ${esc(STATE_NAMES[W.settings.state])}.</p>`;
+  $('#cartOut').innerHTML = warn + `<p class="note">${esc(v.name)}: ${terms} ${esc(CATS[cat])} only${onlyMine ? ', from your list' : ''}; skips anything you thumbed down.</p>` + (carts.length ? carts.map((c, k) => `
     <div class="cart"><div class="carthead"><b>${k === 0 ? 'Best' : `Option ${k + 1}`}: ${money(c.ppg)}/g</b><span class="note">${c.grams}g for ${money(c.total)} · quality ${Math.round(c.q)}</span></div>
       ${c.lines.map((l) => `<div class="alt"><a href="${esc(l.item.url)}" target="_blank" rel="noopener">${esc(l.item.title)}</a><span>${l.grams}g · ${money(l.price)}</span></div>`).join('')}
       <div class="note">Subtotal ${money(c.sub)}${c.disc ? ` − ${money(c.disc)} code` : ''} + ${c.ship ? money(c.ship) + ' shipping' : 'free shipping'} = <b>${money(c.total)}</b></div></div>`).join('')
     : `<p class="empty">${n ? `Nothing fits under $${budget}. Try a higher budget.` : 'No in-stock products with a weight match these filters at this store.'}</p>`);
 }
 
+// ---------- compare up to 4 products side by side ----------
+function renderCompareBar() {
+  const bar = $('#cmpbar'), n = S.compare.size;
+  bar.hidden = !n;
+  bar.querySelector('span').textContent = `${n} selected${n > 4 ? ' (first 4 shown)' : ''}`;
+}
+function openCompare() {
+  const its = [...S.compare].map((id) => D.items.find((i) => i.id === id)).filter(Boolean).slice(0, 4);
+  const rel = (i) => V[i.vendorId]?.reliability?.score;
+  const rows = [
+    ['', (i) => `${i.image ? `<img class="thumb" src="${esc(thumb(i.image))}" alt="" referrerpolicy="no-referrer">` : ''}<a href="${esc(i.url)}" target="_blank" rel="noopener"><b>${esc(i.title)}</b></a>`],
+    ['Store', (i) => `<span class="pill ${tierCls(i.tier)}">${esc(i.tier)}</span> ${esc(V[i.vendorId]?.name)}`],
+    ['Price per gram', (i) => `<b>${pp(i) ? money(pp(i)) + '/g' : '—'}</b>${S.codes && i.codePpg ? ` <span class="note">with ${i.code ? esc(i.code) : 'sale'}</span>` : ''}`],
+    ['Size · total', (i) => (i.effGrams ? `${i.effGrams}g · ${money(i.shipPrice ?? i.bestPpgPrice)}${i.shipFree ? ', free ship' : ''}` : money(i.minPrice))],
+    ['Deal', (i) => dealBadge(dr(i))],
+    ['Quality', (i) => `${myQ(i)}`],
+    ['THCa', (i) => (i.thca ? `${i.thca}% · ${mgPer$(i)} mg/$` : '—')],
+    ['Reviews', (i) => (i.rating ? `★ ${i.rating.toFixed(1)} (${i.reviewCount})` : '—')],
+    ['Reddit', (i) => (i.redditMentions ? `${i.redditMentions} mentions` : '—')],
+    ['Store reliability', (i) => (rel(i) != null ? `${rel(i)}/100` : 'Collecting')],
+    ['Lab report', (i) => (i.coa ? `<a href="${esc(i.coa.url)}" target="_blank" rel="noopener">${i.coa.date || 'Link'}</a>` : '—')],
+    ['Price history', (i) => spark(i.hist) || '<span class="note">No change yet</span>'],
+    ['Ships to you', (i) => ({ yes: 'Yes (you confirmed)', no: 'No (you marked)', 'policy-no': 'No (store policy)', unknown: 'Not confirmed' }[shipStatus(i.vendorId)])],
+  ];
+  $('#cmpBody').innerHTML = `<table class="cmp">${rows.map(([h, f]) => `<tr><th>${h}</th>${its.map((i) => `<td>${f(i)}</td>`).join('')}</tr>`).join('')}</table>`;
+  $('#cmpDlg').showModal();
+}
+
+// ---------- your stash: purchases, spending, run-out estimates ----------
+function renderStash() {
+  const el = $('#stash'); if (!el) return;
+  const ps = W.purchases;
+  if (!ps.length) { el.innerHTML = '<p class="note">Log purchases with "I bought this" in any product\'s details. You\'ll see spending, your real average price per gram, and when you usually run out (Telegram reminds you, with the best current deals).</p>'; return; }
+  const month = (d) => d.slice(0, 7), thisM = new Date().toISOString().slice(0, 7);
+  const lastM = new Date(new Date().setUTCDate(0)).toISOString().slice(0, 7);
+  const spend = (m) => ps.filter((p) => month(p.date) === m).reduce((s, p) => s + p.price, 0);
+  const cats = Object.keys(CATS).map((c) => {
+    const list = ps.filter((p) => p.category === c).sort((a, b) => a.date.localeCompare(b.date));
+    if (!list.length) return '';
+    const g = list.reduce((s, p) => s + (p.grams || 0), 0), spent = list.reduce((s, p) => s + p.price, 0);
+    let due = '';
+    if (list.length >= 2) {
+      const gaps = list.slice(1).map((p, n) => (new Date(p.date) - new Date(list[n].date)) / 864e5).filter((x) => x > 0);
+      if (gaps.length) { const every = gaps.reduce((s, x) => s + x, 0) / gaps.length; const next = new Date(new Date(list.at(-1).date).getTime() + every * 864e5); due = `every ~${Math.round(every)} days · next around ${next.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`; }
+    }
+    return `<tr><td>${CATS[c]}</td><td class="n">${list.length}</td><td class="n">${g ? g + 'g' : '—'}</td><td class="n">${money(spent)}</td><td class="n">${g ? money(spent / g) + '/g' : '—'}</td><td>${due || '<span class="note">Log 2+ to estimate</span>'}</td></tr>`;
+  }).join('');
+  el.innerHTML = `<div class="stats" style="margin-bottom:10px"><div class="stat"><b>${money(spend(thisM))}</b><span>This month</span></div><div class="stat"><b>${money(spend(lastM))}</b><span>Last month</span></div><div class="stat"><b>${ps.length}</b><span>Purchases logged</span></div></div>
+    <div class="tbl-wrap"><table style="min-width:620px"><tr><th>Type</th><th class="n">Buys</th><th class="n">Grams</th><th class="n">Spent</th><th class="n">Your avg</th><th>Rebuy pattern</th></tr>${cats}</table></div>
+    <details style="margin-top:8px"><summary>All purchases</summary><table style="min-width:620px">${ps.map((p, k) => `<tr><td>${p.date}</td><td>${esc(p.title)}</td><td>${esc(V[p.vendorId]?.name || p.vendorId)}</td><td class="n">${p.grams ? p.grams + 'g' : esc(p.label)}</td><td class="n">${money(p.price)}</td><td><button class="linkbtn" data-delbuy="${k}">Remove</button></td></tr>`).join('')}</table></details>`;
+}
+
+function syncState() { const ms = $('#myState'); if (ms) ms.value = W.settings.state; const n = $('#stateName'); if (n) n.textContent = STATE_NAMES[W.settings.state] || W.settings.state; }
+
 function renderVendors() {
   const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5 };
   const vs = [...D.vendors].sort((a, b) => order[a.tier] - order[b.tier] || a.name.localeCompare(b.name));
-  $('#vtbl').innerHTML = `<tr><th>Vendor</th><th>Tier</th><th>Status</th><th class="n">Products</th><th>Shipping</th><th>Codes &amp; sales</th><th class="n">Reddit</th><th class="n">Sentiment</th><th>What people say</th></tr>` +
+  $('#vtbl').innerHTML = `<tr><th>Vendor</th><th>Tier</th><th>Status</th><th class="n">Products</th><th>Ships to ${esc(W.settings.state)}</th><th class="n">Reliability</th><th>Drops</th><th>Shipping</th><th>Codes &amp; sales</th><th class="n">Reddit</th><th class="n">Sentiment</th><th>What people say</th></tr>` +
     vs.map((v) => {
       const st = v.status === 'ok' ? `<span class="st-ok">Updated ${ago(v.scrapedAt)}</span>` : v.status === 'stale' ? `<span class="st-stale">Cached, last good ${ago(v.scrapedAt)}</span>` : `<span class="st-error" title="${esc(v.error)}">${/Cloudflare/.test(v.error || '') ? 'Blocked by bot check' : 'Failed'}</span>`;
       const r = v.reddit; const s = r?.sentiment;
@@ -542,7 +661,12 @@ function renderVendors() {
       const says = (r?.says || []).map((q) => `<p class="quote ${q.sent > 0 ? 'pos' : 'neg'}">"${esc(q.text)}" <a href="${esc(q.link)}" target="_blank" rel="noopener">link</a></p>`).join('');
       const th = r?.top?.length ? `<ul class="threads">${r.top.map((t) => `<li><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.title || 'comment')}</a> · r/${esc(t.sub)}</li>`).join('')}</ul>` : '';
       const sayCell = says || th ? `<details><summary>${says ? 'Quotes' : ''}${says && th ? ' & ' : ''}${th ? `${r.top.length} threads` : ''}</summary>${says}${th}</details>` : '—';
-      return `<tr><td><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.name)}</a></td><td><span class="pill ${tierCls(v.tier)}">${v.tier}</span></td><td>${st}</td><td class="n">${v.count || 0}</td><td>${ship}</td><td>${promos}</td><td class="n">${r?.mentions ?? '—'}${r?.recent ? `<br><span class="note">${r.recent} this month</span>` : ''}</td><td class="n" style="color:${s > 0.05 ? 'var(--good)' : s < -0.05 ? 'var(--bad)' : 'var(--muted)'}">${s == null ? '—' : (s > 0 ? '+' : '') + s.toFixed(2)}</td><td style="max-width:340px">${sayCell}</td></tr>`;
+      const ss = shipStatus(v.id);
+      const shipMe = `<span class="${ss === 'yes' ? 'st-ok' : ss === 'unknown' ? 'note' : 'st-error'}">${{ yes: 'Yes', no: 'No', 'policy-no': 'No (policy)', unknown: 'Unconfirmed' }[ss]}</span><br><button class="linkbtn" data-vship="${v.id}" data-val="1" aria-pressed="${W.settings.vendorShip[v.id] === true}">✓</button> <button class="linkbtn" data-vship="${v.id}" data-val="0" aria-pressed="${W.settings.vendorShip[v.id] === false}">✗</button>`;
+      const rl = v.reliability;
+      const relCell = rl ? `<span title="${rl.inStock}% in stock over ${rl.days} days · ${rl.priceChanges} price changes per product${rl.avgDaysOut != null ? ` · sold-outs last ~${rl.avgDaysOut} days` : ''}">${rl.score}</span>` : '<span class="note">Collecting</span>';
+      const drop = v.dropDay ? `${v.dropDay.day.slice(0, 3)}<br><span class="note">${v.dropDay.share}%</span>` : '—';
+      return `<tr><td><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.name)}</a>${v.labPage ? `<br><a class="note" href="${esc(v.labPage)}" target="_blank" rel="noopener">Lab results</a>` : ''}</td><td><span class="pill ${tierCls(v.tier)}">${v.tier}</span></td><td>${st}</td><td class="n">${v.count || 0}</td><td>${shipMe}</td><td class="n">${relCell}</td><td>${drop}</td><td>${ship}</td><td>${promos}</td><td class="n">${r?.mentions ?? '—'}${r?.recent ? `<br><span class="note">${r.recent} this month</span>` : ''}</td><td class="n" style="color:${s > 0.05 ? 'var(--good)' : s < -0.05 ? 'var(--bad)' : 'var(--muted)'}">${s == null ? '—' : (s > 0 ? '+' : '') + s.toFixed(2)}</td><td style="max-width:340px">${sayCell}</td></tr>`;
     }).join('');
 }
 function stats() {
@@ -566,12 +690,27 @@ function wire() {
   document.querySelectorAll('[data-tier]').forEach((b) => b.onclick = () => { const t = b.dataset.tier; S.tiers.has(t) ? S.tiers.delete(t) : S.tiers.add(t); b.setAttribute('aria-pressed', S.tiers.has(t)); render(); });
   const tog = (id, key) => $(id).onclick = (e) => { S[key] = !S[key]; e.currentTarget.setAttribute('aria-pressed', S[key]); S.limit = 60; render(); };
   tog('#instock', 'instock'); tog('#hmonly', 'hm'); tog('#sized', 'sized'); tog('#starred', 'starred'); tog('#moved', 'moved');
+  tog('#shipsMe', 'shipsMe');
+  const ms = $('#myState');
+  for (const [ab, name] of Object.entries(STATE_NAMES)) ms.add(new Option(name, ab));
+  ms.onchange = () => { W.settings.state = ms.value; syncState(); changed(); renderVendors(); };
+  syncState();
   $('#codes').setAttribute('aria-pressed', S.codes);
   $('#codes').onclick = (e) => { S.codes = !S.codes; e.currentTarget.setAttribute('aria-pressed', S.codes); save(); render(); if ($('#cartOut').innerHTML) renderCart(); };
   const cv = $('#cartVendor');
   const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5 };
   for (const v of [...D.vendors].filter((v) => v.count).sort((a, b) => order[a.tier] - order[b.tier] || a.name.localeCompare(b.name))) cv.add(new Option(`${v.name} (${v.tier})`, v.id));
   $('#cartGo').onclick = renderCart;
+  $('#cmpOpen').onclick = openCompare;
+  $('#cmpClose').onclick = () => $('#cmpDlg').close();
+  $('#cmpClear').onclick = () => { S.compare.clear(); renderCompareBar(); render(); };
+  $('#stash').addEventListener('click', (e) => { const d = e.target.closest('[data-delbuy]'); if (d) { W.purchases.splice(+d.dataset.delbuy, 1); changed(); renderStash(); } });
+  $('#vtbl').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-vship]'); if (!b) return;
+    const vid = b.dataset.vship, val = b.dataset.val === '1';
+    if (W.settings.vendorShip[vid] === val) delete W.settings.vendorShip[vid]; else W.settings.vendorShip[vid] = val;
+    changed(); renderVendors();
+  });
   $('#cartMine').onclick = (e) => { const on = e.currentTarget.getAttribute('aria-pressed') !== 'true'; e.currentTarget.setAttribute('aria-pressed', on); };
   $('#q').oninput = (e) => { S.q = e.target.value; S.limit = 60; render(); };
   $('#filtersBtn').onclick = (e) => { const open = $('.bar').classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', open); e.currentTarget.textContent = open ? 'Done' : 'Filters'; };
@@ -584,7 +723,7 @@ fetch('data.json', { cache: 'no-cache' }).then((r) => r.json()).then((d) => {
   for (const i of d.items) { i.effPpg ??= i.bestPpg; i.effGrams ??= i.bestPpgGrams; } // data from before shipping-aware prices
   G = {}; for (const i of d.items) if (i.group) (G[i.group] ||= []).push(i);
   vendorAffinity();
-  stats(); wire(); render(); renderVendors(); syncNote();
+  stats(); wire(); render(); renderVendors(); renderStash(); syncNote();
 }).catch(() => { $('#list').innerHTML = '<div class="empty">Couldn\'t load the product list. Check your connection and reload.</div>'; });
 loadRemoteWatch();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

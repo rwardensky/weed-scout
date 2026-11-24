@@ -113,6 +113,31 @@ function isThirdParty(v, brand) {
 }
 const strip = (h) => (h || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#0?39;|&#8217;|&rsquo;/g, "'").replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ').trim();
 
+// Lab report (COA) link and test date from product HTML. Generic store-wide lab pages are sorted out later.
+const COA_TEXT = /\bcoa\b|certificate of analysis|lab (?:test|result|report)s?|test results|third[- ]party (?:lab|test)|view (?:the )?lab/i;
+const COA_HREF = /coa|certificate|lab[-_ ]?(?:result|report|test)|labresult|testing|\.pdf(?:$|\?)/i;
+function extractCoa(html, base) {
+  if (!html) return null;
+  for (const m of html.matchAll(/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]{0,300}?)<\/a>/gi)) {
+    const text = strip(m[2]); let href = m[1].replace(/&amp;/g, '&');
+    if (!(COA_TEXT.test(text) || (COA_HREF.test(href) && /coa|lab|test|certif/i.test(href + text)))) continue;
+    try { href = new URL(href, base).href; } catch { continue; }
+    if (!/^https?:/.test(href) || /\/(collections|products?|product-category|cart|account)\b/.test(new URL(href).pathname) && !/\.pdf/i.test(href)) continue;
+    return { url: href, date: coaDate(`${href} ${text} ${strip(html).slice(0, 4000)}`) };
+  }
+  return null;
+}
+const MONTHS = 'jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec';
+function coaDate(s) {
+  const now = Date.now(), ok = (d) => d && !isNaN(d) && d <= now + 864e5 && now - d < 3 * 365 * 864e5 ? new Date(d).toISOString().slice(0, 10) : null;
+  const near = s.match(new RegExp(`(?:tested|test date|date tested|date of (?:test|analysis)|analy[sz]ed|reported|harvest(?:ed)?(?: date)?)[^0-9a-z]{0,12}((?:${MONTHS})[a-z]*\\.? \\d{1,2},? \\d{4}|\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{4}-\\d{2}-\\d{2})`, 'i'));
+  const any = near?.[1] || s.match(/\b(20\d\d)[-_.](\d\d)[-_.](\d\d)\b/)?.[0] || s.match(new RegExp(`\\b(?:${MONTHS})[a-z]*\\.? \\d{1,2},? 20\\d\\d\\b`, 'i'))?.[0];
+  if (!any) return null;
+  const m = any.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (m) return ok(Date.UTC(m[3].length === 2 ? 2000 + +m[3] : +m[3], m[1] - 1, +m[2]));
+  return ok(Date.parse(any.replace(/[_.]/g, '-')));
+}
+
 function makeItem(v, p) {
   // classify on title+brand first; tags are noisy, so only use them as a fallback
   let category = classify(`${p.title} ${p.brand || ''}`) ?? classify([p.title, p.type, (p.cats || []).join(' '), (p.tags || []).join(' ')].join(' '));
@@ -144,6 +169,7 @@ function makeItem(v, p) {
     thirdParty: isThirdParty(v, p.brand) ? strip(p.brand) : null,
     rating: p.rating ?? null, reviewCount: p.reviewCount ?? null,
     thca: potency(category, [p.title, p.desc, ...(p.tags || []), ...p.variants.map((x) => x.label)].join(' | ')),
+    coa: p.coa || null,
   };
 }
 // THCa (or total THC) % as stated in the listing. Not read from COA PDFs; only what the store writes.
@@ -172,7 +198,7 @@ async function shopify(v) {
     for (const p of r.body.products) {
       out.push({
         handle: p.handle, title: p.title, type: p.product_type, tags: Array.isArray(p.tags) ? p.tags : String(p.tags || '').split(','),
-        brand: p.vendor, desc: strip(p.body_html).slice(0, 1500), url: `${v.url}/products/${p.handle}`, image: p.images?.[0]?.src,
+        brand: p.vendor, coa: extractCoa(p.body_html, v.url), desc: strip(p.body_html).slice(0, 1500), url: `${v.url}/products/${p.handle}`, image: p.images?.[0]?.src,
         variants: p.variants.map((x) => ({ label: x.title === 'Default Title' ? '' : x.title, price: +x.price, compareAt: +x.compare_at_price || null, available: !!x.available })),
       });
     }
@@ -214,7 +240,7 @@ async function woo(v) {
       variants = [{ label: '', price: money(p.prices, 'price'), compareAt: money(p.prices, 'regular_price'), available: p.is_in_stock }];
     }
     return {
-      handle: p.slug, title: strip(p.name), desc: strip(p.short_description || p.description).slice(0, 1500), type: '', tags: (p.tags || []).map((t) => t.name), cats: (p.categories || []).map((c) => c.name),
+      handle: p.slug, coa: extractCoa((p.description || '') + (p.short_description || ''), v.url), title: strip(p.name), desc: strip(p.short_description || p.description).slice(0, 1500), type: '', tags: (p.tags || []).map((t) => t.name), cats: (p.categories || []).map((c) => c.name),
       url: p.permalink, image: p.images?.[0]?.thumbnail || p.images?.[0]?.src, variants,
       rating: +p.average_rating || null, reviewCount: p.review_count || null,
     };
@@ -277,7 +303,7 @@ async function jsonld(v) {
       const im0 = Array.isArray(p.image) ? p.image[0] : p.image;
       const img = typeof im0 === 'string' ? im0 : im0?.url || im0?.contentUrl || im0?.thumbnailUrl || null;
       out.push({
-        handle: u.split('/').filter(Boolean).pop(), title: p.name, desc: strip(p.description).slice(0, 1500), type: p.category || '', tags: [], cats: [], brand: p.brand?.name || p.brand,
+        handle: u.split('/').filter(Boolean).pop(), coa: extractCoa(r.body, u), title: p.name, desc: strip(p.description).slice(0, 1500), type: p.category || '', tags: [], cats: [], brand: p.brand?.name || p.brand,
         url: u, image: typeof img === 'string' ? img : null, variants,
         rating: +p.aggregateRating?.ratingValue || null, reviewCount: +(p.aggregateRating?.reviewCount || p.aggregateRating?.ratingCount) || null,
       });
@@ -323,27 +349,49 @@ function bestPromo(promos) {
   const ok = (promos || []).filter((p) => p.pct && !p.firstOrder);
   return ok.sort((a, b) => b.pct - a.pct)[0] || null;
 }
+// States a store says it can't ship (THCa) to: sentences like "cannot be shipped to the following states: AR, CA, ... VA".
+const STATES = { AL: 'alabama', AK: 'alaska', AZ: 'arizona', AR: 'arkansas', CA: 'california', CO: 'colorado', CT: 'connecticut', DE: 'delaware', FL: 'florida', GA: 'georgia', HI: 'hawaii', ID: 'idaho', IL: 'illinois', IN: 'indiana', IA: 'iowa', KS: 'kansas', KY: 'kentucky', LA: 'louisiana', ME: 'maine', MD: 'maryland', MA: 'massachusetts', MI: 'michigan', MN: 'minnesota', MS: 'mississippi', MO: 'missouri', MT: 'montana', NE: 'nebraska', NV: 'nevada', NH: 'new hampshire', NJ: 'new jersey', NM: 'new mexico', NY: 'new york', NC: 'north carolina', ND: 'north dakota', OH: 'ohio', OK: 'oklahoma', OR: 'oregon', PA: 'pennsylvania', RI: 'rhode island', SC: 'south carolina', SD: 'south dakota', TN: 'tennessee', TX: 'texas', UT: 'utah', VT: 'vermont', VA: 'virginia', WA: 'washington', WV: 'west virginia', WI: 'wisconsin', WY: 'wyoming' };
+function findNoShip(t) {
+  const out = new Set();
+  for (const m of t.matchAll(/[^.]{0,120}\b(?:can ?not|can't|cannot|do not|don't|does not|unable to|not able to|won't|will not|restrict(?:ed|s)?|prohibit(?:ed)?|exclud(?:e|ed|ing))\b[^.]{0,40}\bship[^.]{0,400}/gi)) {
+    const s = m[0];
+    // full names first ("west virginia" before "virginia"), then 2-letter codes in a list
+    let rest = ' ' + s.toLowerCase() + ' ';
+    for (const [ab, name] of Object.entries(STATES).sort((a, b) => b[1].length - a[1].length)) if (rest.includes(' ' + name)) { out.add(ab); rest = rest.split(name).join(' '); }
+    const codes = s.match(/\b[A-Z]{2}\b(?=\s*(?:,|and|or|\.|;|$))/g) || [];
+    if (codes.filter((c) => STATES[c]).length >= 3) codes.forEach((c) => STATES[c] && out.add(c));
+  }
+  return [...out];
+}
 async function storeInfo(v, prevInfo) {
   const cacheF = path.join(CACHE, `store-${v.id}.json`);
   const cached = readJson(cacheF, null);
-  if (FROM_CACHE || v.platform === 'browser') return { ...(cached || prevInfo || {}), ...(v.shipping ? { shipping: v.shipping } : {}) };
+  if (FROM_CACHE || v.platform === 'browser') return { ...(cached || prevInfo || {}), ...(v.shipping ? { shipping: v.shipping } : {}), ...(v.noShip ? { noShip: v.noShip } : {}) };
   const info = { shipping: {}, promos: [], checkedAt: new Date().toISOString() };
   const home = await get(v.url, { gap: 2500, tries: 2 });
   const ht = pageText(home.body);
   Object.assign(info.shipping, findShipping(ht));
   info.promos = findPromos(ht);
-  // the shipping page rarely changes: re-read it weekly
-  if (cached?.policy && Date.now() - new Date(cached.policy.t) < 7 * 864e5) info.policy = cached.policy;
-  else {
-    let pol = {};
-    for (const p of ['/policies/shipping-policy', '/shipping-policy', '/shipping']) {
-      const r = await get(v.url + p, { gap: 2500, tries: 1 });
-      if (r.body && /shipping/i.test(r.body)) { pol = findShipping(pageText(r.body)); if (pol.freeOver || pol.cost) break; }
-    }
-    info.policy = { t: new Date().toISOString(), ...pol };
+  // the store's lab-results page, if the homepage links one
+  for (const m of (home.body || '').matchAll(/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]{0,200}?)<\/a>/gi)) {
+    if (/\bcoas?\b|lab (?:results|reports|tests|testing)|certificates? of analysis|test results/i.test(strip(m[2]))) { try { info.labPage = new URL(m[1].replace(/&amp;/g, '&'), v.url).href; break; } catch {} }
   }
-  info.shipping = { ...info.policy, ...info.shipping };
-  delete info.shipping.t;
+  // the shipping page rarely changes: re-read it weekly
+  if (cached?.policy && 'noShip' in cached.policy && Date.now() - new Date(cached.policy.t) < 7 * 864e5) info.policy = cached.policy;
+  else {
+    let pol = {}; const blocked = new Set();
+    for (const p of ['/policies/shipping-policy', '/shipping-policy', '/shipping', '/pages/shipping', '/pages/faq', '/pages/faqs', '/faq', '/faqs']) {
+      const r = await get(v.url + p, { gap: 2500, tries: 1 });
+      if (!r.body || !/ship/i.test(r.body)) continue;
+      const t = pageText(r.body);
+      if (!pol.freeOver && !pol.cost) pol = findShipping(t);
+      for (const s of findNoShip(t)) blocked.add(s);
+    }
+    info.policy = { t: new Date().toISOString(), ...pol, noShip: [...blocked].sort() };
+  }
+  info.noShip = v.noShip || info.policy.noShip || [];
+  const { t: _t, noShip: _n, ...polShip } = info.policy;
+  info.shipping = { ...polShip, ...info.shipping };
   if (v.shipping) info.shipping = { ...info.shipping, ...v.shipping };
   fs.writeFileSync(cacheF, JSON.stringify(info));
   return info;
@@ -375,14 +423,19 @@ async function addPageReviews(v, items) {
   const cacheF = path.join(CACHE, `ratings-${v.id}.json`);
   const cache = readJson(cacheF, {});
   const WEEK = 7 * 864e5;
-  const todo = FROM_CACHE ? [] : items.filter((i) => i.rating == null && i.available).filter((i) => !(cache[i.id] && Date.now() - cache[i.id].t < WEEK)).slice(0, 40);
-  if (todo.length) log(`  reviews: fetching ${todo.length} product pages`);
+  // product pages give star ratings and, on many themes, the lab report link
+  const todo = FROM_CACHE ? [] : items.filter((i) => (i.rating == null || !i.coa) && i.available).filter((i) => !(cache[i.id] && Date.now() - cache[i.id].t < WEEK)).slice(0, 40);
+  if (todo.length) log(`  reviews/labs: fetching ${todo.length} product pages`);
   for (const i of todo) {
     const r = await get(i.url, { gap: 5000, tries: 3 });
-    cache[i.id] = { t: Date.now(), ...(r.body ? pageRating(r.body) || {} : {}) };
+    cache[i.id] = { t: Date.now(), ...(r.body ? pageRating(r.body) || {} : {}), coa: r.body ? extractCoa(r.body, i.url) : null };
   }
   fs.writeFileSync(cacheF, JSON.stringify(cache));
-  for (const i of items) { const c = cache[i.id]; if (c?.rating) { i.rating = c.rating; i.reviewCount = c.count; } }
+  for (const i of items) {
+    const c = cache[i.id];
+    if (c?.rating && i.rating == null) { i.rating = c.rating; i.reviewCount = c.count; }
+    if (c?.coa && !i.coa) i.coa = c.coa;
+  }
 }
 
 // ---------- Reddit buzz via PullPush archive ----------
@@ -545,6 +598,55 @@ function updateHistory(items) {
   fs.writeFileSync(f, JSON.stringify(H));
 }
 
+// ---------- vendor reliability and drop days, from history.json ----------
+// Reliability (0-100): share of the store's products in stock over the last 30 days, how jumpy prices are,
+// and how long sold-out products stay gone. Needs a week of history. Drop day: the weekday most new
+// listings and restocks land on over the last 8 weeks, when one day clearly dominates.
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function vendorStats() {
+  const H = readJson(path.join(DIR, 'history.json'), null);
+  if (!H) return {};
+  const now = Date.now(), t = (d) => new Date(d + 'T12:00:00Z').getTime();
+  const span = Math.min(30, (now - t(H.started)) / DAY);
+  const acc = {}, vFirst = {};
+  for (const [id, rec] of Object.entries(H.items)) { const v = id.split(':')[0]; if (!vFirst[v] || rec.first < vFirst[v]) vFirst[v] = rec.first; }
+  for (const [id, rec] of Object.entries(H.items)) {
+    const vid = id.split(':')[0], a = (acc[vid] ||= { inT: 0, allT: 0, changes: 0, items: 0, outs: [], events: [] });
+    const h = rec.h, from = now - 30 * DAY;
+    if (!h.some((r) => r[3])) continue; // long-gone listings a store keeps online don't count against it
+    a.items++;
+    for (let n = 0; n < h.length; n++) {
+      const s = Math.max(t(h[n][0]), from), e = n + 1 < h.length ? t(h[n + 1][0]) : now;
+      if (e > s) { a.allT += e - s; if (h[n][3]) a.inT += e - s; }
+      if (n && t(h[n][0]) >= from && h[n][1] !== h[n - 1][1] && h[n][1] && h[n - 1][1]) a.changes++;
+      if (n && h[n][3] && !h[n - 1][3]) {
+        a.outs.push((t(h[n][0]) - t(h[n - 1][0])) / DAY);
+        if (now - t(h[n][0]) < 56 * DAY) a.events.push(h[n][0]);
+      }
+    }
+    if (rec.first > H.started && now - t(rec.first) < 56 * DAY) a.events.push(rec.first);
+  }
+  const out = {};
+  for (const [vid, a] of Object.entries(acc)) {
+    const r = {};
+    if (span >= 7 && a.allT) {
+      const inStock = a.inT / a.allT, perItem = a.changes / a.items;
+      const avgOut = a.outs.length ? a.outs.reduce((s, x) => s + x, 0) / a.outs.length : null;
+      r.reliability = { score: Math.round(100 * (0.55 * inStock + 0.25 * (1 - Math.min(1, perItem / 3)) + 0.2 * (avgOut == null ? 0.7 : 1 - Math.min(1, avgOut / 30)))), inStock: Math.round(inStock * 100), priceChanges: +perItem.toFixed(2), avgDaysOut: avgOut == null ? null : +avgOut.toFixed(1), days: Math.round(span) };
+    }
+    // count each drop date once, and ignore the day the store was first tracked (everything looks "new" then)
+    const dates = [...new Set(a.events)].filter((d) => d !== vFirst[vid]);
+    if (dates.length >= 4) {
+      const byDay = [0, 0, 0, 0, 0, 0, 0];
+      for (const d of dates) byDay[new Date(d + 'T12:00:00Z').getUTCDay()]++;
+      const top = byDay.indexOf(Math.max(...byDay)), share = byDay[top] / dates.length;
+      if (share >= 0.4) r.dropDay = { day: WEEKDAYS[top], share: Math.round(share * 100), dates: dates.length };
+    }
+    out[vid] = r;
+  }
+  return out;
+}
+
 // ---------- main ----------
 async function main() {
   const prev = readJson(path.join(DIR, 'data.json'), { items: [], vendors: [] });
@@ -576,7 +678,10 @@ async function main() {
       log(`  ${raw.length} products -> ${vi.length} THCa items`);
       try {
         const info = await storeInfo(v, prev.vendors.find((x) => x.id === v.id));
-        st.shipping = info.shipping || {}; st.promos = info.promos || [];
+        st.shipping = info.shipping || {}; st.promos = info.promos || []; st.noShip = info.noShip || []; st.labPage = info.labPage || null;
+        // a "COA" link shared by many products is the store's general lab page, not a per-product report
+        const counts = {}; for (const i of vi) if (i.coa) counts[i.coa.url] = (counts[i.coa.url] || 0) + 1;
+        for (const [u, n] of Object.entries(counts)) if (n >= 3) { st.labPage ||= u; for (const i of vi) if (i.coa?.url === u) i.coa = null; }
         if (st.promos.length || st.shipping.freeOver) log(`  store: ${st.shipping.freeOver ? `free shipping $${st.shipping.freeOver}+` : ''} ${st.promos.map((p) => p.code || p.text).join(', ')}`);
       } catch (e) { log('  store info failed', e.message); }
     } catch (e) {
@@ -602,7 +707,7 @@ async function main() {
     }
     const rc = redditCache[v.id];
     st.reddit = rc ? { mentions: rc.mentions, sentiment: rc.sentiment, recent: rc.recent, says: rc.says, top: rc.top } : null;
-    if (!st.shipping) { const pv = prev.vendors.find((x) => x.id === v.id); st.shipping = pv?.shipping || v.shipping || {}; st.promos = pv?.promos || []; }
+    if (!st.shipping) { const pv = prev.vendors.find((x) => x.id === v.id); st.shipping = pv?.shipping || v.shipping || {}; st.promos = pv?.promos || []; st.noShip = v.noShip || pv?.noShip || []; st.labPage = pv?.labPage || null; }
     vstat.push(st);
     items.push(...vi);
   }
@@ -665,6 +770,8 @@ async function main() {
   const hashAll = items.filter((i) => i.effPpg && i.available && bucket(i) === 'hash').map((i) => i.effPpg);
   if (hashAll.length >= 5) medians['rosin:hash'] = +median(hashAll).toFixed(2);
   const vr = Object.fromEntries(vstat.map((v) => [v.id, v.reddit]));
+  const VS = vendorStats();
+  for (const s of vstat) { s.reliability = VS[s.id]?.reliability || null; s.dropDay = VS[s.id]?.dropDay || null; }
   for (const i of items) {
     i.tier = tierOf[i.vendorId];
     i.pinned = !!pinnedOf[i.vendorId];
@@ -677,6 +784,8 @@ async function main() {
     // sentence-level sentiment runs about -0.15..+0.15; scale to roughly ±10 points, trusting it more with more mentions
     if (r?.mentions) q += Math.max(-10, Math.min(10, r.sentiment * 80)) * Math.min(1, r.mentions / 20);
     if (i.redditMentions) q += Math.min(8, i.redditMentions * 2) * (i.redditSent >= 0 ? 1 : -1);
+    const rel = VS[i.vendorId]?.reliability?.score;
+    if (rel != null) q += Math.max(-4, Math.min(4, (rel - 70) / 6)); // dependable stores get a small edge
     i.quality = Math.round(Math.max(0, Math.min(100, q * (100 / 80))));
     i.value = i.dealRatio ? Math.round(i.quality * Math.sqrt(Math.max(0.5, Math.min(2, i.dealRatio)))) : null;
     i.bDeal = i.tier === 'B' ? !!(i.dealRatio && i.dealRatio >= 1.33) : null;
