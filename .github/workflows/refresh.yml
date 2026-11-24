@@ -46,9 +46,11 @@ jobs:
           path: cache
           key: scout-cache-${{ github.run_id }}
 
-      # phone alerts through ntfy; set the NTFY_TOPIC repository secret to turn them on
+      # phone alerts: Telegram (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID secrets) or ntfy (NTFY_TOPIC)
       - name: Send alerts
         env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: node alerts.mjs
 

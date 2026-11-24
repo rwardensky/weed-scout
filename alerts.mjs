@@ -1,5 +1,6 @@
-// Sends phone alerts through ntfy (https://ntfy.sh) after each refresh.
-// Usage: NTFY_TOPIC=<secret topic> node alerts.mjs [--dry-run]
+// Sends phone alerts after each refresh: Telegram when TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID are set,
+// otherwise ntfy (https://ntfy.sh) when NTFY_TOPIC is set.
+// Usage: node alerts.mjs [--dry-run] [--test]   (--test sends one "alerts are on" message and exits)
 // Alerts:
 //   - starred products: price drop, back in stock, new 30-day low
 //   - starred strains: a new listing, drop or restock at any vendor
@@ -11,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const DRY = process.argv.includes('--dry-run');
-const TOPIC = process.env.NTFY_TOPIC;
+const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN, TG_CHAT = process.env.TELEGRAM_CHAT_ID;
+const TOPIC = TG_TOKEN && TG_CHAT ? 'telegram' : process.env.NTFY_TOPIC;
 const SITE = 'https://rwardensky.github.io/weed-scout/';
 const read = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')); } catch { return d; } };
 
@@ -56,14 +58,34 @@ if (toSend.length > 6) {
   toSend = [{ key: `digest:${today}`, prio: 3, tag: 'bell', title: `${toSend.length} Weed Scout alerts`, body: toSend.slice(0, 8).map((e) => `• ${e.title}: ${e.body}`).join('\n'), url: SITE, members: toSend }];
 }
 
+const html = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const EMOJI = { chart_with_downwards_trend: '📉', package: '📦', moneybag: '💰', seedling: '🌱', fire: '🔥', bell: '🔔', white_check_mark: '✅' };
 async function send(e) {
-  if (DRY || !TOPIC) { console.log(`[${DRY ? 'dry-run' : 'no NTFY_TOPIC'}] ${e.title} | ${e.body}`); return true; }
+  if (DRY || !TOPIC) { console.log(`[${DRY ? 'dry-run' : 'no alert channel set'}] ${e.title} | ${e.body}`); return true; }
+  if (TOPIC === 'telegram') {
+    const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TG_CHAT, parse_mode: 'HTML', disable_web_page_preview: true,
+        text: `${EMOJI[e.tag] || ''} <b>${html(e.title)}</b>\n${html(e.body)}`,
+        reply_markup: { inline_keyboard: [[{ text: e.url && e.url !== SITE ? 'Open product' : 'Open Weed Scout', url: e.url || SITE }]] },
+      }),
+    });
+    if (!r.ok) console.log('alerts: telegram', r.status, (await r.text()).slice(0, 200));
+    return r.ok;
+  }
   const r = await fetch(`https://ntfy.sh/${encodeURIComponent(TOPIC)}`, {
     method: 'POST', body: e.body,
     headers: { Title: e.title.replace(/[^\x20-\x7E]/g, ''), Tags: e.tag, Priority: String(e.prio), Click: e.url || SITE },
   });
   if (!r.ok) console.log('alerts: ntfy', r.status, await r.text());
   return r.ok;
+}
+
+if (process.argv.includes('--test')) {
+  const ok = await send({ title: 'Weed Scout alerts are on', body: `You'll get price drops, restocks and new listings for your starred products and strains, plus big S/A deals. ${data.items.filter((i) => i.available).length} products tracked right now.`, tag: 'white_check_mark', prio: 3, url: SITE });
+  console.log(`alerts: test message ${ok ? 'sent' : 'failed'} via ${TOPIC || 'nothing (no channel set)'}`);
+  process.exit(ok && TOPIC ? 0 : 1);
 }
 
 let sent = 0;
