@@ -12,7 +12,7 @@
     {"id": "crysp", "name": "Crysp CO", "url": "https://shopcrysp.com", "tier": "A", "platform": "browser", "reddit": ["crysp"]},
     {"id": "dailyhi", "name": "Daily Hi", "url": "https://www.daily-hi.com", "tier": "A", "platform": "shopify", "reddit": ["daily hi", "daily-hi", "daily high club"]},
     {"id": "purecanna", "name": "Pure Canna Co", "url": "https://purecanna.co", "tier": "A", "platform": "shopify", "reddit": ["pure canna", "purecanna"]},
-    {"id": "quantum", "name": "Quantum Exotics", "url": "https://www.quantumexotics.com", "tier": "A+", "platform": "jsonld", "reddit": ["quantum exotics"]},
+    {"id": "quantum", "name": "Quantum Exotics", "url": "https://www.quantumexotics.com", "tier": "A+", "platform": "jsonld", "defaultGrams": {"rosin": 1}, "reddit": ["quantum exotics"]},
     {"id": "roots", "name": "Roots & Releaf", "url": "https://www.rootsandreleaf.com", "tier": "A", "platform": "square", "squareUser": "148971725", "squareSite": "920798371790063824", "reddit": ["roots and releaf", "roots & releaf", "rootsandreleaf"]},
     {"id": "sherlocks", "name": "Sherlock's Glass", "url": "https://sherlocksglass.com", "tier": "A", "platform": "woo", "reddit": ["sherlocks", "sherlock's glass", "the sesh"]},
     {"id": "wlx", "name": "White Label Exotics", "url": "https://shopwlx.com", "tier": "A", "platform": "woo", "reddit": ["white label exotics", "wlx"]},

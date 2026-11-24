@@ -61,7 +61,7 @@ async function get(url, { json = false, gap = 3500, tries = 5 } = {}) {
 }
 
 // ---------- classification ----------
-const EXCLUDE = /gumm|edible|jell(y|ies)|chocolate|tincture|beverage|drink|seltzer|soda|t-?shirt|hoodie|\bhat\b|merch|apparel|gift ?card|sticker|lighter|grinder|\brig\b|banger|torch|bong|pipe\b|carb cap|topical|lotion|capsule|softgel|cookie|candy|syrup|\bpet\b|delta[- ]?8|delta[- ]?9 gumm|mushroom|amanita|kratom|bundle builder|subscription|sample pack|mystery|bottle|bites\b|taffy|\bmints?\b|\bchews?\b|lozenge|honey|caramel|\btea\b|delivery fee|discount|loyalty|testing product|mood ?mats?|\bmats?\b|dab swabs?|\bcbd (flower|hemp)|hemp flower cbd|\bcbg\b|massage oil|\brub\b|balm|accessor|cbd isolate|isolate powder/i;
+const EXCLUDE = /gumm|edible|jell(y|ies)|chocolate|tincture|beverage|drink|seltzer|soda|t-?shirt|hoodie|\bhat\b|merch|apparel|gift ?card|sticker|lighter|grinder|\brig\b|banger|torch|bong|pipe\b|carb cap|topical|lotion|capsule|softgel|cookie|candy|syrup|\bpet\b|delta[- ]?8|delta[- ]?9 gumm|mushroom|amanita|kratom|bundle builder|subscription|sample pack|mystery|bottle|bites\b|taffy|\bmints?\b|\bchews?\b|lozenge|honey|caramel|\btea\b|delivery fee|discount|loyalty|testing product|mood ?mats?|\bmats?\b|dab swabs?|\bcbd (flower|hemp)|hemp flower cbd|\bcbg\b|massage oil|\brub\b|balm|accessor|cbd isolate|isolate powder|feminized|autoflower seeds|\bseeds\b|dabber|\bbatter(y|ies)\b|\bkit\b|splashers?|\bliter\b|lollipops?|popsicles?|ice pops?|brookie|\d+\s*pcs\b/i;
 function classify(text) {
   const t = text.toLowerCase();
   if (EXCLUDE.test(t)) return null;
@@ -80,13 +80,16 @@ function parseGrams(s) {
   const t = s.toLowerCase();
   let m;
   if (/half ?(a )?gram/.test(t)) return 0.5;
+  // ranges like "0.5-0.6 grams each": use the low end so $/g isn't flattered
+  if ((m = t.match(/(\d*\.?\d+)\s*(?:-|to)\s*(\d*\.?\d+)\s*(?:g|gr|gram|grams)\b/))) return parseFloat(m[1]);
   if ((m = t.match(/(\d*\.?\d+)\s*(?:g|gr|gram|grams|ml)\b/))) return parseFloat(m[1]);
+  if (/^\s*(full |one |1 )?gram\s*$/.test(t)) return 1;
   if ((m = t.match(/(\d*\.?\d+)\s*mg\b/)) && parseFloat(m[1]) >= 100) return parseFloat(m[1]) / 1000;
   if (/\b1\/8|eighth/.test(t)) return 3.5;
   if (/\b1\/4(?!\s*(lb|pound))|quarter(?! pound)/.test(t)) return 7;
   if (/\b1\/2\s*(oz|ounce)|half ?(oz|ounce)/.test(t)) return 14;
   if ((m = t.match(/(\d+(?:\.\d+)?)\s*(?:oz|ounces?)\b/))) return parseFloat(m[1]) * 28;
-  if (/\bounce\b|\bzip\b/.test(t)) return 28;
+  if (/\bounce\b|\bzip\b|\boz'?s\b/.test(t)) return 28;
   if (/\bqp\b|quarter pound/.test(t)) return 112;
   if (/\bhp\b|half pound|half lb/.test(t)) return 224;
   if (/\bpound\b|\blb\b/.test(t)) return 448;
@@ -117,9 +120,13 @@ function makeItem(v, p) {
   if (category === 'concentrate' && (SOLVENTLESS.some((b) => norm(p.brand).includes(norm(b))) || /solventless|hash|melt|sift|rosin|ice ?water/i.test(p.brand || ''))) category = 'rosin';
   if (!category) return null;
   const anyLabelWeight = p.variants.some((y) => parseGrams(y.label));
+  // vendors that sell fixed-size jars without saying so (e.g. Quantum's 1g singles); flagged as assumed on the site
+  const assumedG = !anyLabelWeight && !parseGrams(p.title) && !/pack|sampler|mystery|bundle|\d+\s*ct\b/i.test(p.title) ? v.defaultGrams?.[category] : null;
   const variants = p.variants.map((x) => {
-    const g = parseGrams(x.label) ?? (!anyLabelWeight ? parseGrams(p.title) ?? (p.variants.length === 1 ? parseGrams(p.desc) : null) : null);
-    return { label: x.label || 'Default', grams: g, price: x.price, compareAt: x.compareAt > x.price ? x.compareAt : null, available: x.available, ppg: g && x.price ? +(x.price / g).toFixed(2) : null };
+    let g = parseGrams(x.label) ?? (!anyLabelWeight ? parseGrams(p.title) ?? (p.variants.length === 1 ? parseGrams(p.desc) : null) : null);
+    let assumed = false;
+    if (!g && assumedG) { g = assumedG; assumed = true; }
+    return { label: x.label || 'Default', grams: g, assumed: assumed || undefined, price: x.price, compareAt: x.compareAt > x.price ? x.compareAt : null, available: x.available, ppg: g && x.price ? +(x.price / g).toFixed(2) : null };
   }).filter((x) => x.price > 0);
   if (!variants.length) return null;
   const avail = variants.filter((x) => x.available);
@@ -130,7 +137,8 @@ function makeItem(v, p) {
     id: `${v.id}:${p.handle}`, vendorId: v.id, title: strip(p.title), brand: p.brand || null, category,
     url: p.url, image: p.image || null, variants,
     available: avail.length > 0, minPrice: Math.min(...pool.map((x) => x.price)),
-    bestPpg: best?.ppg ?? null, bestPpgLabel: best?.label ?? null, bestPpgGrams: best?.grams ?? null,
+    bestPpg: best?.ppg ?? null, bestPpgLabel: best?.label ?? null, bestPpgGrams: best?.grams ?? null, bestPpgPrice: best?.price ?? null,
+    weightAssumed: best?.assumed || undefined,
     onSale: variants.some((x) => x.compareAt),
     hashmaker: findHashmaker(`${p.title} ${p.brand || ''} ${(p.tags || []).join(' ')}`),
     thirdParty: isThirdParty(v, p.brand) ? strip(p.brand) : null,
@@ -261,6 +269,62 @@ async function jsonld(v) {
   return out;
 }
 
+// ---------- shipping terms and promo codes, read from the store's own homepage + shipping page ----------
+// Manual values in vendors.json ("shipping": {"cost": 10, "freeOver": 99}) win over what's found.
+const pageText = (h) => (h || '').replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ')
+  .replace(/&amp;/g, '&').replace(/&#36;|&dollar;/g, '$').replace(/&nbsp;|&#160;/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ');
+function findShipping(t) {
+  const s = {};
+  let m = t.match(/free (?:ground |standard |domestic |priority )?shipping[^$.]{0,45}\$\s?(\d{2,3})/i) || t.match(/\$\s?(\d{2,3})\s?\+?[^.]{0,25}free (?:ground |standard )?shipping/i);
+  if (m) s.freeOver = +m[1];
+  m = t.match(/(?:flat[- ]rate|standard|ground|usps|shipping (?:is|costs?|fee))[^$.]{0,30}\$\s?(\d{1,2}(?:\.\d\d)?)(?!\d)/i);
+  if (m && +m[1] > 0 && +m[1] < 30 && +m[1] !== s.freeOver) s.cost = +m[1];
+  return s;
+}
+function findPromos(t) {
+  const out = [];
+  for (const m of t.matchAll(/([^.!|]{0,60}?)\b(?:[Uu]se |[Pp]romo |[Cc]oupon |[Dd]iscount )?[Cc](?:ode|ODE)\s*(?:[:=]\s*|\s)["“']?([A-Z][A-Z0-9]{3,19})\b([^.!|]{0,50})/g)) {
+    const code = m[2];
+    if (/^(CODE|SHOP|HERE|BELOW|NOW|APPLY|FREE)$/.test(code) || out.some((x) => x.code === code)) continue;
+    out.push({ code, text: strip(`${m[1]} code ${code}${m[3]}`).replace(/\s+/g, ' ').trim().slice(0, 120) });
+  }
+  const sale = t.match(/[^.!|]{0,40}\b\d{1,2}% off (?:everything|sitewide|all|storewide)[^.!|]{0,30}/i);
+  if (sale && !out.length) out.push({ code: null, text: sale[0].trim().slice(0, 120) });
+  return out.slice(0, 3);
+}
+async function storeInfo(v, prevInfo) {
+  const cacheF = path.join(CACHE, `store-${v.id}.json`);
+  const cached = readJson(cacheF, null);
+  if (FROM_CACHE || v.platform === 'browser') return { ...(cached || prevInfo || {}), ...(v.shipping ? { shipping: v.shipping } : {}) };
+  const info = { shipping: {}, promos: [], checkedAt: new Date().toISOString() };
+  const home = await get(v.url, { gap: 2500, tries: 2 });
+  const ht = pageText(home.body);
+  Object.assign(info.shipping, findShipping(ht));
+  info.promos = findPromos(ht);
+  // the shipping page rarely changes: re-read it weekly
+  if (cached?.policy && Date.now() - new Date(cached.policy.t) < 7 * 864e5) info.policy = cached.policy;
+  else {
+    let pol = {};
+    for (const p of ['/policies/shipping-policy', '/shipping-policy', '/shipping']) {
+      const r = await get(v.url + p, { gap: 2500, tries: 1 });
+      if (r.body && /shipping/i.test(r.body)) { pol = findShipping(pageText(r.body)); if (pol.freeOver || pol.cost) break; }
+    }
+    info.policy = { t: new Date().toISOString(), ...pol };
+  }
+  info.shipping = { ...info.policy, ...info.shipping };
+  delete info.shipping.t;
+  if (v.shipping) info.shipping = { ...info.shipping, ...v.shipping };
+  fs.writeFileSync(cacheF, JSON.stringify(info));
+  return info;
+}
+// Estimated price with shipping for buying just that size. Unknown flat rate → assume $10 (typical for hemp mail order).
+const SHIP_GUESS = 10;
+function landed(price, ship) {
+  if (!ship || (ship.freeOver == null && ship.cost == null)) return null;
+  if (ship.freeOver != null && price >= ship.freeOver) return price;
+  return price + (ship.cost ?? SHIP_GUESS);
+}
+
 // ---------- product-page review scraping (Shopify review widgets), cached 7 days ----------
 function pageRating(html) {
   for (const p of ldProducts(html)) {
@@ -335,16 +399,41 @@ async function buildCorpus() {
   return Object.values(c.docs);
 }
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Phrases count more than single words; a negator just before a word flips it ("not fire", "never had mold").
+const POS2 = /\b(would (?:buy|order) again|re-?up(?:ped)?|reorder(?:ed)?|no complaints|highly recommend|10\/10|can'?t go wrong|exceeded|blown away)\b/gi;
+const NEG2 = /\b(never again|stay away|do not buy|don'?t buy|chargeback|bunk|ghosted|no response|never (?:got|received)|took (?:weeks|forever)|missing (?:order|package)|customer service (?:sucks|is terrible))\b/gi;
+const NEGATOR = /\b(not|never|isn'?t|wasn'?t|ain'?t|no|don'?t|didn'?t|wouldn'?t|won'?t|hardly|zero)\b[^.!?,]{0,18}$/i;
+function sentScore(text) {
+  let p = 0, n = 0;
+  const hit = (re, w, dir) => { for (const m of text.matchAll(re)) { const neg = NEGATOR.test(text.slice(Math.max(0, m.index - 30), m.index)); if ((dir > 0) !== neg) p += w; else n += w; } };
+  hit(POS, 1, 1); hit(NEG, 1, -1); hit(POS2, 2, 1); hit(NEG2, 2, -1);
+  return { p, n, s: (p - n) / (p + n + 2) };
+}
 async function reddit(v) {
   CORPUS ||= await buildCorpus();
   const res = v.reddit.map((t) => new RegExp(`\\b${reEsc(t)}\\b`, 'i'));
+  const now = Date.now() / 1000;
+  const quotes = [];
   const list = CORPUS.filter((d) => res.some((re) => re.test(d.text))).map((d) => {
-    const p = (d.text.match(POS) || []).length, n = (d.text.match(NEG) || []).length;
-    return { ...d, sent: (p - n) / (p + n + 2) };
+    // score the sentences that name the vendor; fall back to the whole post
+    const sents = d.text.split(/(?<=[.!?])\s+|\n+/).filter((s) => res.some((re) => re.test(s)));
+    const sc = sentScore(sents.join(' ') || d.text);
+    for (const s of sents) {
+      const q = sentScore(s); const clean = strip(s).replace(/\s+/g, ' ').trim();
+      if (Math.abs(q.s) >= 0.25 && clean.length >= 25 && clean.length <= 220) quotes.push({ text: clean, sent: +q.s.toFixed(2), score: d.score, link: d.link, t: d.t });
+    }
+    // upvoted and recent posts count more (half-life ~4 months)
+    const w = (1 + Math.log10(1 + Math.max(0, d.score))) * Math.pow(0.5, (now - d.t) / (120 * 86400));
+    return { ...d, sent: sc.s, w };
   });
-  const avg = list.length ? list.reduce((s, d) => s + d.sent, 0) / list.length : 0;
+  const wsum = list.reduce((s, d) => s + d.w, 0);
+  const avg = wsum ? list.reduce((s, d) => s + d.sent * d.w, 0) / wsum : 0;
+  const pick = (f, dir) => quotes.filter(f).sort((a, b) => dir * (b.sent - a.sent) || b.score - a.score || b.t - a.t).filter((q, i, a) => a.findIndex((x) => x.text === q.text) === i).slice(0, 2)
+    .map(({ text, sent, link }) => ({ text, sent, link }));
   return {
     mentions: list.length, sentiment: +avg.toFixed(3),
+    recent: list.filter((d) => now - d.t < 30 * 86400).length,
+    says: [...pick((q) => q.sent > 0, 1), ...pick((q) => q.sent < 0, -1)],
     top: list.sort((a, b) => b.score - a.score).slice(0, 4).map(({ title, text, link, sub, score, sent }) => ({ title: strip(title || text).slice(0, 140), link, sub, score, sent: +sent.toFixed(2) })),
     _docs: list,
   };
@@ -354,11 +443,23 @@ function strainKey(title) {
   const k = title.toLowerCase().replace(/[|•–—:()[\]]/g, ' ').replace(GENERIC, ' ').replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim();
   return k.length >= 5 ? k : null;
 }
+// Key for "same strain at other vendors": the strain name with maker, tier, size and format words removed.
+const GROUP_STOP = /\b(t\d|tier ?\d|no|reserve|batch|baller|jars?|packs?|\d*ct|pen|aio|a i o|joints?|infused|blunts?|mini|singles?|thca|thc|live|cold|cure|rosin|resin|hash|bubble|ice water|carts?|cartridges?|disposables?|vapes?|o2|flower|smalls|mediums|tadpoles|micro|buds?|indoor|greenhouse|outdoor|sungrown|living soil|exotic|aaa\+?|connected|alien|smoken promises|hrc|hcs|sesh|parlay|new|limited|drop|exclusive|sale|deal|special|staff pick|grams?|ounce|oz|eighth|quarter|half|full|melt|star|budget|spectrum|wax|sugar|badder|batter|sauce|diamonds?|crumble|shatter|jam|fresh|press(ed)?|pre ?rolls?|prerolls?|\d+(\.\d+)?\s*(g|oz|mg|ml)?|\d\/\d\s*oz)\b/g;
+function groupKey(i) {
+  let t = i.title.toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, ' ');
+  for (const b of [i.hashmaker, i.thirdParty, i.brand, ...HM]) if (b && b.length >= 3) t = t.split(b.toLowerCase()).join(' ');
+  t = t.replace(/\bstrain\b.*$/, ' ');
+  // the strain is usually the first segment: "Name | Format | Size", "Name · Format", "Name: Format"
+  const segs = t.split(/\s[|·•–—-]\s|[|·•:]/).map((s) => s.replace(/[\-/,+&#]/g, ' ').replace(GROUP_STOP, ' ').replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim()).filter((s) => s.replace(/ /g, '').length >= 3);
+  const k = segs[0];
+  if (!k || k.split(' ').length > 3 || /^(shake|grown|temple balls?|trim|popcorn|mystery|variety|sampler|assorted|mix(ed)?|hybrid|indica|sativa|house|premium)$/.test(k)) return null;
+  return `${i.category}:${k}`;
+}
 
 // ---------- scoring ----------
 const TIER_PTS = { S: 40, 'A+': 36, A: 32, B: 20, C: 14, D: 8 };
 function bucket(i) {
-  const g = i.bestPpgGrams || 0;
+  const g = i.effGrams || i.bestPpgGrams || 0;
   if (i.category === 'flower') return g <= 3.5 ? 'small' : g <= 14 ? 'mid' : g <= 56 ? 'bulk' : 'wholesale';
   if (i.category === 'preroll') return 'all';
   // unpressed hash (bubble, ice water, dry sift, temple balls) is priced well below rosin
@@ -366,6 +467,52 @@ function bucket(i) {
   return g <= 1 ? 'small' : g <= 3.5 ? 'mid' : 'bulk';
 }
 const median = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+// ---------- price history (history.json, committed so it survives cache loss) ----------
+// Per item, one row each time its shipped $/g, lowest price or stock changes: [date, ppg, minPrice, inStock].
+const DAY = 864e5;
+const dayStr = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+const daysSince = (d) => (Date.now() - new Date(d + 'T12:00:00Z')) / DAY;
+function updateHistory(items) {
+  const f = path.join(DIR, 'history.json');
+  const H = readJson(f, { started: dayStr(), items: {} });
+  const today = dayStr();
+  const seen = new Set();
+  for (const i of items) {
+    if (i.stale) continue; // cached rows aren't new observations
+    seen.add(i.id);
+    const rec = (H.items[i.id] ||= { first: today, h: [] });
+    const row = [today, i.effPpg ?? null, i.minPrice ?? null, i.available ? 1 : 0];
+    const last = rec.h.at(-1);
+    if (last && last[0] === today) rec.h[rec.h.length - 1] = row;
+    else if (!last || last[1] !== row[1] || last[2] !== row[2] || last[3] !== row[3]) rec.h.push(row);
+    rec.last = today;
+  }
+  for (const i of items) {
+    const rec = H.items[i.id]; if (!rec) continue;
+    const h = rec.h, cur = h.at(-1);
+    // when did the current price start, and what was it before?
+    let k = h.length - 1; while (k > 0 && h[k - 1][1] === cur[1]) k--;
+    const prevRow = k > 0 ? h[k - 1] : null;
+    if (prevRow && prevRow[1] && cur[1] && cur[1] < prevRow[1] * 0.95 && daysSince(h[k][0]) <= 3)
+      i.drop = { pct: Math.round((1 - cur[1] / prevRow[1]) * 100), from: prevRow[1], at: h[k][0] };
+    // lowest shipped $/g in the last 30 days (including the price that was live 30 days ago)
+    const win = h.filter((r, n) => daysSince(r[0]) <= 30 || (h[n + 1] && daysSince(h[n + 1][0]) <= 30)).map((r) => r[1]).filter(Boolean);
+    if (cur[1] && win.length > 1 && cur[1] <= Math.min(...win) && Math.max(...win) > cur[1] * 1.03) i.low30 = true;
+    let s = h.length - 1; while (s > 0 && h[s - 1][3] === cur[3]) s--;
+    if (cur[3] && s > 0 && !h[s - 1][3] && daysSince(h[s][0]) <= 2) i.restocked = h[s][0];
+    if (rec.first > H.started && daysSince(rec.first) <= 2) i.isNew = rec.first;
+    i.firstSeen = rec.first;
+    if (h.length > 1) i.hist = h.slice(-12).map((r) => [r[0], r[1]]);
+  }
+  // forget items gone 60+ days; trim rows older than 120 days (keeping the one live at the cutoff)
+  for (const [id, rec] of Object.entries(H.items)) {
+    if (!seen.has(id) && daysSince(rec.last || rec.first) > 60) { delete H.items[id]; continue; }
+    const cut = rec.h.findIndex((r) => daysSince(r[0]) <= 120);
+    if (cut > 1) rec.h = rec.h.slice(cut - 1);
+  }
+  fs.writeFileSync(f, JSON.stringify(H));
+}
 
 // ---------- main ----------
 async function main() {
@@ -396,6 +543,11 @@ async function main() {
       if (!NO_REVIEWS && v.platform === 'shopify') await addPageReviews(v, vi);
       st.count = vi.length;
       log(`  ${raw.length} products -> ${vi.length} THCa items`);
+      try {
+        const info = await storeInfo(v, prev.vendors.find((x) => x.id === v.id));
+        st.shipping = info.shipping || {}; st.promos = info.promos || [];
+        if (st.promos.length || st.shipping.freeOver) log(`  store: ${st.shipping.freeOver ? `free shipping $${st.shipping.freeOver}+` : ''} ${st.promos.map((p) => p.code || p.text).join(', ')}`);
+      } catch (e) { log('  store info failed', e.message); }
     } catch (e) {
       st.status = 'error'; st.error = e.message;
       const old = prev.items.filter((i) => i.vendorId === v.id);
@@ -417,7 +569,9 @@ async function main() {
         log(`  reddit: ${rb.mentions} mentions, sentiment ${rb.sentiment}`);
       } catch (e) { log('  reddit failed', e.message); }
     }
-    st.reddit = redditCache[v.id] ? { mentions: redditCache[v.id].mentions, sentiment: redditCache[v.id].sentiment, top: redditCache[v.id].top } : null;
+    const rc = redditCache[v.id];
+    st.reddit = rc ? { mentions: rc.mentions, sentiment: rc.sentiment, recent: rc.recent, says: rc.says, top: rc.top } : null;
+    if (!st.shipping) { const pv = prev.vendors.find((x) => x.id === v.id); st.shipping = pv?.shipping || v.shipping || {}; st.promos = pv?.promos || []; }
     vstat.push(st);
     items.push(...vi);
   }
@@ -426,37 +580,64 @@ async function main() {
   // keep vendors not scraped this run (when using --only)
   if (ONLY) { for (const pv of prev.vendors) if (!ONLY.includes(pv.id)) vstat.push(pv); items.push(...prev.items.filter((i) => !ONLY.includes(i.vendorId))); }
 
-  // medians of $/g from S/A in-stock items, per category+size bucket
+  // price with shipping: the cheapest per-gram size once shipping for that order is added.
+  // Unknown terms → assume $10 shipping, free at $100 (typical), and flag it as an estimate.
+  const shipOf = Object.fromEntries(vstat.map((s) => {
+    const sh = s.shipping || {};
+    const known = sh.freeOver != null || sh.cost != null;
+    return [s.id, known ? { cost: sh.cost ?? SHIP_GUESS, freeOver: sh.freeOver ?? null, estimated: sh.cost == null } : { cost: SHIP_GUESS, freeOver: 100, estimated: true }];
+  }));
+  for (const i of items) {
+    const ship = shipOf[i.vendorId];
+    let best = null;
+    for (const x of i.variants) {
+      if (!x.ppg || (i.available && !x.available)) continue;
+      const L = landed(x.price, ship); const lp = L / x.grams;
+      if (!best || lp < best.lp) best = { lp, L, x };
+    }
+    i.shipPpg = best ? +best.lp.toFixed(2) : null;
+    i.shipPrice = best ? +best.L.toFixed(2) : null;
+    i.shipLabel = best ? best.x.label : null;
+    i.shipFree = best ? best.L === best.x.price : null;
+    i.shipEstimated = ship.estimated || undefined;
+    i.effPpg = i.shipPpg ?? i.bestPpg;
+    i.effGrams = best?.x.grams ?? i.bestPpgGrams;
+    i.group = groupKey(i);
+  }
+
+  // medians of shipped $/g from S/A in-stock items, per category+size bucket
   const tierOf = Object.fromEntries(cfg.vendors.map((v) => [v.id, v.tier]));
   const pinnedOf = Object.fromEntries(cfg.vendors.map((v) => [v.id, v.pinned]));
   const medians = {};
   for (const i of items) {
-    if (!i.bestPpg || !i.available || !['S', 'A+', 'A'].includes(tierOf[i.vendorId])) continue;
-    (medians[`${i.category}:${bucket(i)}`] ||= []).push(i.bestPpg);
+    if (!i.effPpg || !i.available || !['S', 'A+', 'A'].includes(tierOf[i.vendorId])) continue;
+    (medians[`${i.category}:${bucket(i)}`] ||= []).push(i.effPpg);
   }
   // a size band needs 8+ S/A items for its own median; otherwise use the whole category's
   const catAll = {};
   for (const [k, arr] of Object.entries(medians)) (catAll[k.split(':')[0]] ||= []).push(...arr);
   for (const k of Object.keys(medians)) medians[k] = +median(medians[k].length >= 8 ? medians[k] : catAll[k.split(':')[0]]).toFixed(2);
   // hash has few S/A listings, and rosin prices would distort it: use every in-stock hash item instead
-  const hashAll = items.filter((i) => i.bestPpg && i.available && bucket(i) === 'hash').map((i) => i.bestPpg);
+  const hashAll = items.filter((i) => i.effPpg && i.available && bucket(i) === 'hash').map((i) => i.effPpg);
   if (hashAll.length >= 5) medians['rosin:hash'] = +median(hashAll).toFixed(2);
   const vr = Object.fromEntries(vstat.map((v) => [v.id, v.reddit]));
   for (const i of items) {
     i.tier = tierOf[i.vendorId];
     i.pinned = !!pinnedOf[i.vendorId];
     const med = medians[`${i.category}:${bucket(i)}`];
-    i.dealRatio = i.bestPpg && med ? +(med / i.bestPpg).toFixed(2) : null;
+    i.dealRatio = i.effPpg && med ? +(med / i.effPpg).toFixed(2) : null;
     let q = TIER_PTS[i.tier] ?? 10;
     if (i.hashmaker) q += 12; else if (i.thirdParty) q += 6;
     if (i.rating && i.reviewCount) { const bay = (i.rating * i.reviewCount + 4.3 * 5) / (i.reviewCount + 5); q += Math.max(0, Math.min(20, ((bay - 3.5) / 1.5) * 20)); } else q += 8;
     const r = vr[i.vendorId];
-    if (r?.mentions) q += r.sentiment * 25 * Math.min(1, r.mentions / 20);
+    // sentence-level sentiment runs about -0.15..+0.15; scale to roughly ±10 points, trusting it more with more mentions
+    if (r?.mentions) q += Math.max(-10, Math.min(10, r.sentiment * 80)) * Math.min(1, r.mentions / 20);
     if (i.redditMentions) q += Math.min(8, i.redditMentions * 2) * (i.redditSent >= 0 ? 1 : -1);
     i.quality = Math.round(Math.max(0, Math.min(100, q * (100 / 80))));
     i.value = i.dealRatio ? Math.round(i.quality * Math.sqrt(Math.max(0.5, Math.min(2, i.dealRatio)))) : null;
     i.bDeal = i.tier === 'B' ? !!(i.dealRatio && i.dealRatio >= 1.33) : null;
   }
+  updateHistory(items);
   const out = { generatedAt: new Date().toISOString(), medians, vendors: vstat, items };
   fs.writeFileSync(path.join(DIR, 'data.json'), JSON.stringify(out));
   log(`done: ${items.length} items from ${vstat.filter((v) => v.count).length}/${vstat.length} vendors`);

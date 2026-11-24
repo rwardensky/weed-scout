@@ -1,15 +1,23 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Weed Scout</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#1c211d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Weed Scout">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: sticky control bar over a dense ranked list; vendor coverage table below. Rosin-amber accent on a cool sage neutral. */
+/* Layout: sticky control bar over a dense ranked list with expandable details; vendor coverage table below. Rosin-amber accent on a cool sage neutral. */
 :root {
   --bg: #f3f5f2; --surface: #ffffff; --sunk: #e8ece6; --line: #d5dbd2;
   --fg: #1c231e; --muted: #5d6a60; --accent: #a8620a; --accent-soft: #f6e6cc;
   --good: #2f7d4a; --good-soft: #dcefe2; --warn: #9a6b00; --bad: #b23b2e; --bad-soft: #f7dfdb;
-  --tS: #7a3fd0; --tA: #1f6fb2; --tB: #6b7280;
+  --tS: #7a3fd0; --tA: #1f6fb2; --tB: #6b7280; --star: #c98a12;
   --display: "Sora", "Segoe UI", system-ui, sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
@@ -18,14 +26,14 @@
   --bg: #141815; --surface: #1c211d; --sunk: #232a25; --line: #313a33;
   --fg: #e6ebe5; --muted: #9aa69c; --accent: #e9a23b; --accent-soft: #3a2c15;
   --good: #6cc98b; --good-soft: #1d3325; --warn: #e3b448; --bad: #ef8577; --bad-soft: #3b201c;
-  --tS: #b38cf2; --tA: #6fb2ec; --tB: #9ca3af; color-scheme: dark } }
+  --tS: #b38cf2; --tA: #6fb2ec; --tB: #9ca3af; --star: #f0b443; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #141815; --surface: #1c211d; --sunk: #232a25; --line: #313a33;
   --fg: #e6ebe5; --muted: #9aa69c; --accent: #e9a23b; --accent-soft: #3a2c15;
   --good: #6cc98b; --good-soft: #1d3325; --warn: #e3b448; --bad: #ef8577; --bad-soft: #3b201c;
-  --tS: #b38cf2; --tA: #6fb2ec; --tB: #9ca3af; color-scheme: dark }
+  --tS: #b38cf2; --tA: #6fb2ec; --tB: #9ca3af; --star: #f0b443; color-scheme: dark }
 * { box-sizing: border-box }
-body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body); }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body); margin: 0 }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface) }
 .wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 header.top { padding-block: 28px 18px; display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: end; justify-content: space-between }
@@ -38,7 +46,7 @@ h1 span { color: var(--accent) }
 .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-block: 1px solid var(--line); }
 .bar .wrap { padding-block: 10px; display: flex; flex-direction: column; gap: 8px }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-wrap: wrap }
 .seg button, .chip { font: 500 13px var(--body); color: var(--fg); background: transparent; border: 0; padding: 7px 12px; cursor: pointer }
 .seg button + button { border-left: 1px solid var(--line) }
 .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg) }
@@ -47,17 +55,25 @@ h1 span { color: var(--accent) }
 .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-right: 2px }
 input[type=search], select { font: 14px var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px }
 input[type=search] { flex: 1 1 200px; min-width: 0 }
-button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 main { padding-block: 18px 40px; display: flex; flex-direction: column; gap: 28px }
 .note { font-size: 13px; color: var(--muted) }
+.note a { color: var(--accent) }
+.banner a { color: var(--accent) }
+.banner { font-size: 13px; padding: 8px 12px; border-radius: 8px; background: var(--accent-soft); margin-bottom: 8px }
 .list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden }
-.item { display: grid; grid-template-columns: 28px 72px minmax(0, 1fr) 130px 120px 110px; gap: 14px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line) }
-.item:first-child { border-top: 0 }
-.rank { font: 500 13px var(--mono); color: var(--muted); text-align: right }
+.entry { border-top: 1px solid var(--line) }
+.entry:first-child { border-top: 0 }
+.item { display: grid; grid-template-columns: 30px 72px minmax(0, 1fr) 140px 110px 100px; gap: 14px; align-items: center; padding: 12px 14px }
+.lead { display: flex; flex-direction: column; align-items: center; gap: 2px }
+.rank { font: 500 12px var(--mono); color: var(--muted) }
+.star { font-size: 19px; line-height: 1; background: none; border: 0; padding: 4px; cursor: pointer; color: var(--line); border-radius: 6px }
+.star[aria-pressed="true"] { color: var(--star) }
+.star:hover { color: var(--star) }
 .thumb { display: block; width: 72px; height: 72px; border-radius: 8px; background: var(--sunk); object-fit: cover }
 .name { min-width: 0 }
-.name a { color: var(--fg); font-weight: 600; text-decoration: none }
-.name a:hover { color: var(--accent); text-decoration: underline }
+.name > a { color: var(--fg); font-weight: 600; text-decoration: none }
+.name > a:hover { color: var(--accent); text-decoration: underline }
 .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--muted); align-items: center }
 .pill { font: 600 11px var(--mono); padding: 1px 6px; border-radius: 4px; color: #fff }
 .t-S { background: var(--tS) } .t-A, .t-Ap { background: var(--tA) } .t-B, .t-C, .t-D { background: var(--tB) }
@@ -65,6 +81,8 @@ main { padding-block: 18px 40px; display: flex; flex-direction: column; gap: 28p
 .tag.hm { border-color: var(--accent); color: var(--accent); font-weight: 600 }
 .tag.sale { background: var(--bad-soft); color: var(--bad); border-color: transparent }
 .tag.oos { background: var(--sunk) }
+.tag.move { background: var(--good-soft); color: var(--good); border-color: transparent; font-weight: 600 }
+.linkbtn { font: 500 12px var(--body); color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px }
 .num { font: 500 15px var(--mono); font-variant-numeric: tabular-nums; text-align: right }
 .num small { display: block; font: 12px var(--body); color: var(--muted) }
 .deal { font: 600 13px var(--mono); padding: 2px 8px; border-radius: 6px; display: inline-block }
@@ -72,23 +90,45 @@ main { padding-block: 18px 40px; display: flex; flex-direction: column; gap: 28p
 .q { display: flex; flex-direction: column; align-items: flex-end; gap: 4px }
 .meter { width: 90px; height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden }
 .meter i { display: block; height: 100%; background: var(--accent) }
+.details { padding: 4px 14px 16px calc(30px + 72px + 42px); display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; font-size: 13px }
+.details h3 { font: 600 12px var(--body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px }
+.details table { min-width: 0; font-size: 13px }
+.details td, .details th { padding: 3px 8px 3px 0; border: 0 }
+.details td.n { text-align: right }
+.spark { display: block; width: 100%; max-width: 260px; height: 56px }
+.spark polyline { fill: none; stroke: var(--accent); stroke-width: 2 }
+.spark circle { fill: var(--accent) }
+.alt { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line) }
+.alt a { color: var(--fg) } .alt span { font-family: var(--mono); white-space: nowrap }
+.watchbtn { margin-top: 8px; font: 500 13px var(--body); padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer }
+.watchbtn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent) }
 .empty { padding: 40px 16px; text-align: center; color: var(--muted) }
 h2 { font: 600 19px var(--display); margin: 0 0 4px }
 .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface) }
-table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 720px }
+table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 860px }
 th, td { text-align: left; padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top }
 th { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border-top: 0 }
 td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right }
 .st-ok { color: var(--good) } .st-stale { color: var(--warn) } .st-error { color: var(--bad) }
 td a { color: var(--accent) }
+code.promo { font: 600 12px var(--mono); background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; user-select: all }
 .threads { margin: 4px 0 0; padding-left: 16px; color: var(--muted) }
+.quote { margin: 4px 0; padding-left: 8px; border-left: 3px solid var(--line); color: var(--fg) }
+.quote.pos { border-color: var(--good) } .quote.neg { border-color: var(--bad) }
 details summary { cursor: pointer; color: var(--accent) }
 .more { align-self: center; font: 500 14px var(--body); padding: 9px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer }
+#filtersBtn { display: none }
 @media (max-width: 760px) {
-  .item { grid-template-columns: 22px 48px minmax(0, 1fr); row-gap: 8px }
+  /* phones: only sort + search stay pinned; the rest opens from "Filters" */
+  #filtersBtn { display: inline-block }
+  .bar .row.f { display: none }
+  .bar.open .row.f { display: flex }
+  .bar.open { position: static }
+  .seg button { padding: 7px 10px }
+  .item { grid-template-columns: 30px 48px minmax(0, 1fr); row-gap: 8px }
   .thumb { width: 48px; height: 48px }
   .item .num, .item .q, .item .dcell { grid-column: 3; text-align: left; align-items: flex-start }
-  .item .cells { grid-column: 2 / -1 }
+  .details { padding: 0 14px 14px 14px }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 </style>
@@ -96,7 +136,7 @@ details summary { cursor: pointer; color: var(--accent) }
 <header class="wrap top">
   <div>
     <h1>Weed <span>Scout</span></h1>
-    <p class="sub">Every product from the S and A tier vendors, ranked by price per gram against the S/A median and by quality (vendor tier, hashmaker, site reviews, Reddit buzz). B tier shows only when it's at least 25% under the median.</p>
+    <p class="sub">Every product from the S and A tier vendors, ranked by price per gram with shipping against the S/A median and by quality (vendor tier, hashmaker, site reviews, Reddit buzz). B tier shows only when it's at least 25% under the median.</p>
   </div>
   <div class="stats" id="stats"></div>
 </header>
@@ -110,18 +150,24 @@ details summary { cursor: pointer; color: var(--accent) }
         <button data-v="deal" aria-pressed="false">Best deal</button>
         <button data-v="quality" aria-pressed="false">Best rated</button>
         <button data-v="ppg" aria-pressed="false">Lowest $/g</button>
+        <button data-v="moves" aria-pressed="false">Newest changes</button>
       </div>
       <input type="search" id="q" placeholder="Search strain, vendor, hashmaker">
+      <button class="chip" id="filtersBtn" aria-expanded="false" aria-controls="cats">Filters</button>
     </div>
-    <div class="row" id="cats"><span class="lbl">Type</span></div>
-    <div class="row">
+    <div class="row f" id="cats"><span class="lbl">Type</span></div>
+    <div class="row f">
       <span class="lbl">Vendors</span>
       <button class="chip" data-tier="S" aria-pressed="true">S tier</button>
       <button class="chip" data-tier="A" aria-pressed="true">A tier</button>
       <button class="chip" data-tier="B" aria-pressed="true">B tier deals</button>
       <button class="chip" data-tier="P" aria-pressed="true">Watchlist vendors</button>
       <select id="vendor" aria-label="Vendor"><option value="">All vendors</option></select>
-      <span class="lbl" style="margin-left:8px">Show</span>
+    </div>
+    <div class="row f">
+      <span class="lbl">Show</span>
+      <button class="chip" id="starred" aria-pressed="false">★ My list</button>
+      <button class="chip" id="moved" aria-pressed="false">Drops, restocks &amp; new</button>
       <button class="chip" id="instock" aria-pressed="true">In stock only</button>
       <button class="chip" id="hmonly" aria-pressed="false">Third-party hashmakers</button>
       <button class="chip" id="sized" aria-pressed="true">Has a $/g</button>
@@ -131,33 +177,38 @@ details summary { cursor: pointer; color: var(--accent) }
 
 <main class="wrap">
   <section>
+    <div id="syncnote"></div>
     <p class="note" id="count"></p>
     <div class="list" id="list"><div class="empty">Loading products…</div></div>
   </section>
   <section>
     <h2>Vendor coverage</h2>
-    <p class="note">What the last refresh pulled from each site. "Blocked" sites sit behind a bot check and need browser scraping. White Ash Reserve and Crysp update when you run the <a href="capture.html" style="color:var(--accent)">capture bookmark</a> on their sites. Reddit counts are posts and comments from the last 12 months in cannabis subreddits.</p>
+    <p class="note">What the last refresh pulled from each site, with shipping terms and promo codes read from the store's own pages. White Ash Reserve and Crysp update when you run the <a href="capture.html">capture bookmark</a> on their sites. Reddit counts are posts and comments from the last 12 months in cannabis subreddits.</p>
     <div class="tbl-wrap"><table id="vtbl"></table></div>
   </section>
   <section>
     <h2>How scores work</h2>
     <p class="note" style="max-width:75ch">
-      <b>Deal</b>: the product's lowest available price per gram divided into the median $/g of in-stock S/A products in the same type and size band (≤1g, up to 3.5g, larger; flower bands are eighth, up to half ounce, ounce and up). +30% means 30% cheaper than typical.
-      <b>Quality (0–100)</b>: vendor tier (S 40, A+ 36, A 32, B 20), +12 for a known hashmaker (710, Bryantist, HRC, Stayfly…) or +6 for another third-party brand, up to +20 from site star ratings (weighted toward 4.3 when there are few reviews), ±10 from vendor Reddit sentiment, and up to ±8 when the strain itself is discussed.
+      <b>Price with shipping</b>: for each size, the price plus that store's shipping if the order is under its free-shipping minimum. When a store doesn't publish its terms, it assumes $10 shipping, free over $100, and marks it "est." The cheapest size per gram after shipping is what's shown and ranked.
+      <b>Deal</b>: that shipped $/g against the median shipped $/g of in-stock S/A products of the same type and size band (≤1g, up to 3.5g, larger; flower bands are eighth, up to half ounce, ounce and up). +30% means 30% cheaper than typical.
+      <b>Quality (0–100)</b>: vendor tier (S 40, A+ 36, A 32, B 20), +12 for a known hashmaker (710, Bryantist, HRC, Stayfly…) or +6 for another third-party brand, up to +20 from site star ratings (weighted toward 4.3 when there are few reviews), ±10 from vendor Reddit sentiment (weighted toward upvoted, recent posts; "not fire" counts as negative), and up to ±8 when the strain itself is discussed.
       <b>Overall</b>: quality × √deal, so a great jar at a fair price beats a mediocre jar at a steep discount.
+      <b>Changes</b>: prices are recorded every refresh. "↓" marks a drop in the last 3 days, "30-day low" the cheapest it has been in a month.
     </p>
   </section>
 </main>
 
 <script>
 const CATS = { rosin: 'Rosin & hash', flower: 'Flower', concentrate: 'Other concentrates', vape: 'Vapes', preroll: 'Pre-rolls' };
-const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, limit: 60 };
-let D = null, V = {};
-try { const saved = JSON.parse(localStorage.getItem('scout') || 'null'); if (saved) { S.sort = saved.sort || S.sort; if (saved.cats) S.cats = new Set(saved.cats); } } catch {}
-const save = () => { try { localStorage.setItem('scout', JSON.stringify({ sort: S.sort, cats: [...S.cats] })); } catch {} };
+const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, limit: 60, open: new Set() };
+let D = null, V = {}, G = {};
+const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+{ const saved = ls.get('scout', null); if (saved) { S.sort = saved.sort || S.sort; if (saved.cats) S.cats = new Set(saved.cats); } }
+const save = () => ls.set('scout', { sort: S.sort, cats: [...S.cats] });
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = (n) => n == null ? '—' : '$' + (n >= 100 ? Math.round(n) : n.toFixed(2));
+const shortDate = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // smaller image sizes: Shopify CDN takes ?width=, WordPress keeps -300x300 copies
 function thumb(u) {
   try {
@@ -169,11 +220,55 @@ function thumb(u) {
 }
 const tierCls = (t) => 't-' + (t === 'A+' ? 'Ap' : t);
 const ago = (iso) => { if (!iso) return 'never'; const h = (Date.now() - new Date(iso)) / 36e5; return h < 1 ? 'just now' : h < 48 ? Math.round(h) + 'h ago' : Math.round(h / 24) + 'd ago'; };
+const moved = (i) => !!(i.drop || i.restocked || i.isNew || i.low30);
+const moveDate = (i) => [i.drop?.at, i.restocked, i.isNew].filter(Boolean).sort().at(-1) || '';
+
+// ---------- watchlist: stars on products and strains, synced to watchlist.json when this browser has the capture token ----------
+const REPO = 'rwardensky/weed-scout';
+const token = () => { try { return localStorage.getItem('ws-token') || ''; } catch { return ''; } };
+let W = ls.get('ws-watch', { items: [], strains: [], updatedAt: 0 });
+W.items = new Set(W.items); W.strains = new Set(W.strains);
+let remoteSha = null, saveTimer = null;
+const plainW = () => ({ items: [...W.items].sort(), strains: [...W.strains].sort(), updatedAt: W.updatedAt });
+async function loadRemoteWatch() {
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/contents/watchlist.json?ref=main&t=${Date.now()}`, { headers: token() ? { Authorization: 'Bearer ' + token() } : {} });
+    if (r.status === 404) return;
+    if (!r.ok) return;
+    const j = await r.json(); remoteSha = j.sha;
+    const remote = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g, '')))));
+    if ((remote.updatedAt || 0) >= (W.updatedAt || 0)) { W = { items: new Set(remote.items || []), strains: new Set(remote.strains || []), updatedAt: remote.updatedAt || 0 }; ls.set('ws-watch', plainW()); if (D) render(); }
+    else if (token()) queueSave();
+  } catch {}
+}
+function queueSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveRemoteWatch, 1200); }
+async function saveRemoteWatch(retry = true) {
+  if (!token()) return;
+  const body = { message: 'Update watchlist', content: btoa(unescape(encodeURIComponent(JSON.stringify(plainW(), null, 1)))), branch: 'main', ...(remoteSha ? { sha: remoteSha } : {}) };
+  const r = await fetch(`https://api.github.com/repos/${REPO}/contents/watchlist.json`, { method: 'PUT', headers: { Authorization: 'Bearer ' + token(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null);
+  if (r?.ok) { remoteSha = (await r.json()).content.sha; syncNote(); return; }
+  if (retry && r && (r.status === 409 || r.status === 422)) { // someone else saved: refresh the sha, keep our newer list
+    const g = await fetch(`https://api.github.com/repos/${REPO}/contents/watchlist.json?ref=main&t=${Date.now()}`, { headers: { Authorization: 'Bearer ' + token() } }).catch(() => null);
+    if (g?.ok) { remoteSha = (await g.json()).sha; return saveRemoteWatch(false); }
+  }
+  syncNote(r ? `Couldn't sync your list (GitHub said ${r.status}).` : `Couldn't reach GitHub to sync your list.`);
+}
+function toggleWatch(kind, key) {
+  const set = W[kind]; set.has(key) ? set.delete(key) : set.add(key);
+  W.updatedAt = Date.now(); ls.set('ws-watch', plainW()); queueSave(); render(); syncNote();
+}
+function syncNote(err) {
+  const n = W.items.size + W.strains.size;
+  const el = $('#syncnote');
+  if (err) { el.innerHTML = `<div class="banner">${esc(err)}</div>`; return; }
+  el.innerHTML = n && !token() ? `<div class="banner">Your ★ list is saved on this device only. Connect GitHub on the <a href="capture.html">capture page</a> to sync it across devices and get phone alerts for it.</div>` : '';
+}
 
 function visible() {
   const q = S.q.toLowerCase();
   return D.items.filter((i) => {
     const t = i.tier === 'A+' ? 'A' : i.tier;
+    if (S.starred) return W.items.has(i.id) || (i.group && W.strains.has(i.group)) ? (!q || i.title.toLowerCase().includes(q)) : false;
     if (i.pinned) { if (!S.tiers.has('P')) return false; }
     else {
       if (!S.tiers.has(t)) return false;
@@ -183,7 +278,8 @@ function visible() {
     if (S.vendor && i.vendorId !== S.vendor) return false;
     if (S.instock && !i.available) return false;
     if (S.hm && !(i.hashmaker || i.thirdParty)) return false;
-    if (S.sized && !i.bestPpg) return false;
+    if (S.sized && !i.effPpg) return false;
+    if (S.moved && !moved(i)) return false;
     if (q && !`${i.title} ${V[i.vendorId]?.name} ${i.hashmaker || ''} ${i.thirdParty || ''}`.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -192,7 +288,8 @@ const sorters = {
   value: (a, b) => (b.value ?? b.quality * 0.7) - (a.value ?? a.quality * 0.7),
   deal: (a, b) => (b.dealRatio ?? 0) - (a.dealRatio ?? 0),
   quality: (a, b) => b.quality - a.quality || (b.dealRatio ?? 0) - (a.dealRatio ?? 0),
-  ppg: (a, b) => (a.bestPpg ?? 1e9) - (b.bestPpg ?? 1e9),
+  ppg: (a, b) => (a.effPpg ?? 1e9) - (b.effPpg ?? 1e9),
+  moves: (a, b) => moveDate(b).localeCompare(moveDate(a)) || (b.drop?.pct ?? 0) - (a.drop?.pct ?? 0) || (b.value ?? 0) - (a.value ?? 0),
 };
 function dealBadge(r) {
   if (r == null) return '<span class="deal even">no $/g</span>';
@@ -200,50 +297,115 @@ function dealBadge(r) {
   if (Math.abs(pct) < 5) return '<span class="deal even">at median</span>';
   return pct > 0 ? `<span class="deal good">${pct}% under</span>` : `<span class="deal bad">${-pct}% over</span>`;
 }
+function moveTags(i) {
+  const t = [];
+  if (i.drop) t.push(`<span class="tag move" title="Was ${money(i.drop.from)}/g">↓${i.drop.pct}% since ${shortDate(i.drop.at)}</span>`);
+  if (i.low30) t.push('<span class="tag move">30-day low</span>');
+  if (i.restocked) t.push(`<span class="tag move">Back in stock ${shortDate(i.restocked)}</span>`);
+  if (i.isNew) t.push(`<span class="tag move">New ${shortDate(i.isNew)}</span>`);
+  return t.join('');
+}
+function priceCell(i) {
+  if (!i.effPpg) return `<div class="num">${money(i.minPrice)}<small>from, no weight listed</small></div>`;
+  const ship = i.shipPpg ? (i.shipFree ? 'free shipping' : `with ${i.shipEstimated ? 'est. ' : ''}shipping`) : 'before shipping';
+  const size = i.effGrams ? `${i.effGrams}g${i.weightAssumed ? ' (assumed)' : ''}` : '';
+  return `<div class="num" title="Sticker ${money(i.bestPpg)}/g">${money(i.effPpg)}/g<small>${size}${size ? ' · ' : ''}${ship}</small></div>`;
+}
+function others(i) {
+  if (!i.group) return [];
+  return (G[i.group] || []).filter((x) => x.id !== i.id && x.available);
+}
+function spark(h) {
+  const pts = (h || []).filter((r) => r[1]);
+  if (pts.length < 2) return '';
+  const xs = pts.map((r) => new Date(r[0]).getTime()); xs.push(Date.now());
+  const ys = pts.map((r) => r[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const X = (t) => 4 + ((t - x0) / (x1 - x0 || 1)) * 252, Y = (y) => 50 - ((y - y0) / (y1 - y0 || 1)) * 44;
+  // step line: each price holds until the next change, through today
+  let p = []; pts.forEach((r, n) => { const x = X(xs[n]); if (n) p.push(`${x},${Y(pts[n - 1][1])}`); p.push(`${x},${Y(r[1])}`); }); p.push(`${X(Date.now())},${Y(ys.at(-1))}`);
+  return `<svg class="spark" viewBox="0 0 260 56" role="img" aria-label="Price per gram history from ${money(y1)} to ${money(ys.at(-1))}"><polyline points="${p.join(' ')}"/><circle cx="${X(Date.now())}" cy="${Y(ys.at(-1))}" r="3"/></svg>`;
+}
+function detailsHtml(i) {
+  const v = V[i.vendorId] || {};
+  // one row per size and price; flavors of the same size are counted rather than listed
+  const bySize = new Map();
+  for (const x of i.variants.filter((x) => x.price > 0)) {
+    const k = `${x.grams ?? x.label}|${x.price}`;
+    const r = bySize.get(k) || { label: x.grams ? `${x.grams}g${x.assumed ? ' (assumed)' : ''}` : x.label, price: x.price, ppg: x.ppg, n: 0, inStock: 0 };
+    r.n++; if (x.available) r.inStock++; bySize.set(k, r);
+  }
+  const sizes = [...bySize.values()].sort((a, b) => a.price - b.price).slice(0, 8).map((r) => `<tr><td>${esc(r.label)}${r.n > 1 ? ` <span class="note">${r.inStock}/${r.n} flavors in stock</span>` : r.inStock ? '' : ' <span class="tag oos">sold out</span>'}</td><td class="n">${money(r.price)}</td><td class="n">${r.ppg ? money(r.ppg) + '/g' : '—'}</td></tr>`).join('');
+  const hist = spark(i.hist);
+  const alts = others(i).sort((a, b) => (a.effPpg ?? 1e9) - (b.effPpg ?? 1e9)).slice(0, 8);
+  const ship = v.shipping?.freeOver ? `Free shipping over $${v.shipping.freeOver}${v.shipping.cost ? `, else $${v.shipping.cost}` : ''}.` : 'Shipping terms not published; estimated.';
+  const promos = (v.promos || []).map((p) => p.code ? `<code class="promo">${esc(p.code)}</code> ${esc(p.text.replace(new RegExp(`code\\s*[:=]?\\s*${p.code}`, 'i'), '').trim())}` : esc(p.text)).join('<br>');
+  return `<div class="details" id="d-${esc(i.id)}">
+    <div><h3>Sizes</h3><table>${sizes}</table><p class="note" style="margin:6px 0 0">${esc(v.name)}: ${ship}${promos ? `<br>${promos}` : ''}</p></div>
+    <div><h3>Price history</h3>${hist || `<p class="note">Tracking since ${i.firstSeen ? shortDate(i.firstSeen) : 'today'}; no change yet.</p>`}</div>
+    <div><h3>Same strain elsewhere</h3>${alts.length ? alts.map((a) => `<div class="alt"><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(V[a.vendorId]?.name || a.vendorId)} <span class="pill ${tierCls(a.tier)}">${esc(a.tier)}</span></a><span>${a.effPpg ? money(a.effPpg) + '/g' : money(a.minPrice)}</span></div>`).join('') : '<p class="note">Not listed at other tracked vendors right now.</p>'}
+      ${i.group ? `<button class="watchbtn" data-strain="${esc(i.group)}" aria-pressed="${W.strains.has(i.group)}">${W.strains.has(i.group) ? '★ Watching this strain' : '☆ Watch this strain'}</button>` : ''}</div>
+  </div>`;
+}
 function render() {
   const rows = visible().sort(sorters[S.sort]);
   $('#count').textContent = `${rows.length} products match` + (rows.length > S.limit ? `, showing top ${S.limit}` : '');
   const list = $('#list');
-  if (!rows.length) { list.innerHTML = '<div class="empty">Nothing matches these filters. Try turning off "Has a $/g" or "In stock only".</div>'; return; }
+  if (!rows.length) { list.innerHTML = `<div class="empty">${S.starred ? 'Nothing starred yet. Tap ☆ on a product, or "Watch this strain" in its details.' : 'Nothing matches these filters. Try turning off "Has a $/g" or "In stock only".'}</div>`; return; }
   list.innerHTML = rows.slice(0, S.limit).map((i, n) => {
     const v = V[i.vendorId] || {};
     const maker = i.hashmaker || i.thirdParty;
     const rating = i.rating ? `★ ${i.rating.toFixed(1)} (${i.reviewCount})` : '';
     const rd = i.redditMentions ? `<a href="${esc(i.redditLinks?.[0])}" target="_blank" rel="noopener" class="tag" style="text-decoration:none;color:inherit">Reddit ×${i.redditMentions}</a>` : '';
-    return `<div class="item">
-      <div class="rank">${n + 1}</div>
+    const alts = others(i);
+    const cheaper = alts.filter((a) => a.effPpg && i.effPpg && a.effPpg < i.effPpg).length;
+    const open = S.open.has(i.id);
+    const starred = W.items.has(i.id);
+    return `<div class="entry"><div class="item">
+      <div class="lead"><span class="rank">${n + 1}</span><button class="star" data-star="${esc(i.id)}" aria-pressed="${starred}" aria-label="${starred ? 'Unstar' : 'Star'} ${esc(i.title)}">${starred ? '★' : '☆'}</button></div>
       ${i.image ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" tabindex="-1"><img class="thumb" loading="lazy" referrerpolicy="no-referrer" src="${esc(thumb(i.image))}" data-full="${esc(i.image)}" alt="${esc(i.title)}" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb'}))}"></a>` : '<div class="thumb"></div>'}
       <div class="name">
         <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a>
         <div class="meta"><span class="pill ${tierCls(i.tier)}">${esc(i.tier)}</span>${esc(v.name || i.vendorId)} · ${CATS[i.category]}
           ${maker ? `<span class="tag ${i.hashmaker ? 'hm' : ''}">${esc(maker)}</span>` : ''}
           ${i.onSale ? '<span class="tag sale">On sale</span>' : ''}${!i.available ? '<span class="tag oos">Sold out</span>' : ''}
-          ${i.stale ? '<span class="tag oos">Cached</span>' : ''}${rating ? `<span>${rating}</span>` : ''}${rd}</div>
+          ${i.stale ? '<span class="tag oos">Cached</span>' : ''}${moveTags(i)}${rating ? `<span>${rating}</span>` : ''}${rd}
+          <button class="linkbtn" data-open="${esc(i.id)}" aria-expanded="${open}">${alts.length ? `Also at ${new Set(alts.map((a) => a.vendorId)).size} vendor${new Set(alts.map((a) => a.vendorId)).size > 1 ? 's' : ''}${cheaper ? `, ${cheaper} cheaper` : ''}` : 'Details'}</button></div>
       </div>
-      <div class="num">${i.bestPpg ? money(i.bestPpg) + '/g' : money(i.minPrice)}<small>${i.bestPpgGrams ? `${i.bestPpgGrams}g size` : 'from'}</small></div>
+      ${priceCell(i)}
       <div class="num dcell">${dealBadge(i.dealRatio)}</div>
       <div class="q"><span class="num">${i.quality}</span><div class="meter"><i style="width:${i.quality}%"></i></div></div>
-    </div>`;
+    </div>${open ? detailsHtml(i) : ''}</div>`;
   }).join('') + (rows.length > S.limit ? `<div style="display:flex;padding:12px"><button class="more" id="more">Show 60 more</button></div>` : '');
   $('#more')?.addEventListener('click', () => { S.limit += 60; render(); });
 }
+$('#list').addEventListener('click', (e) => {
+  const st = e.target.closest('[data-star]'); if (st) return toggleWatch('items', st.dataset.star);
+  const ws = e.target.closest('[data-strain]'); if (ws) return toggleWatch('strains', ws.dataset.strain);
+  const op = e.target.closest('[data-open]'); if (op) { const id = op.dataset.open; S.open.has(id) ? S.open.delete(id) : S.open.add(id); render(); }
+});
 function renderVendors() {
   const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5 };
   const vs = [...D.vendors].sort((a, b) => order[a.tier] - order[b.tier] || a.name.localeCompare(b.name));
-  $('#vtbl').innerHTML = `<tr><th>Vendor</th><th>Tier</th><th>Status</th><th class="n">Products</th><th class="n">Reddit</th><th class="n">Sentiment</th><th>Top threads</th></tr>` +
+  $('#vtbl').innerHTML = `<tr><th>Vendor</th><th>Tier</th><th>Status</th><th class="n">Products</th><th>Shipping</th><th>Codes &amp; sales</th><th class="n">Reddit</th><th class="n">Sentiment</th><th>What people say</th></tr>` +
     vs.map((v) => {
       const st = v.status === 'ok' ? `<span class="st-ok">Updated ${ago(v.scrapedAt)}</span>` : v.status === 'stale' ? `<span class="st-stale">Cached, last good ${ago(v.scrapedAt)}</span>` : `<span class="st-error" title="${esc(v.error)}">${/Cloudflare/.test(v.error || '') ? 'Blocked by bot check' : 'Failed'}</span>`;
       const r = v.reddit; const s = r?.sentiment;
-      const th = r?.top?.length ? `<details><summary>${r.top.length} threads</summary><ul class="threads">${r.top.map((t) => `<li><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.title || 'comment')}</a> · r/${esc(t.sub)}</li>`).join('')}</ul></details>` : '—';
-      return `<tr><td><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.name)}</a></td><td><span class="pill ${tierCls(v.tier)}">${v.tier}</span></td><td>${st}</td><td class="n">${v.count || 0}</td><td class="n">${r?.mentions ?? '—'}</td><td class="n" style="color:${s > 0.05 ? 'var(--good)' : s < -0.05 ? 'var(--bad)' : 'var(--muted)'}">${s == null ? '—' : (s > 0 ? '+' : '') + s.toFixed(2)}</td><td>${th}</td></tr>`;
+      const ship = v.shipping?.freeOver ? `Free over $${v.shipping.freeOver}` + (v.shipping.cost ? `<br><span class="note">else $${v.shipping.cost}</span>` : '') : v.shipping?.cost ? `$${v.shipping.cost}` : '<span class="note">Not listed</span>';
+      const promos = (v.promos || []).map((p) => p.code ? `<code class="promo" title="${esc(p.text)}">${esc(p.code)}</code>` : `<span class="note">${esc(p.text)}</span>`).join(' ') || '—';
+      const says = (r?.says || []).map((q) => `<p class="quote ${q.sent > 0 ? 'pos' : 'neg'}">"${esc(q.text)}" <a href="${esc(q.link)}" target="_blank" rel="noopener">link</a></p>`).join('');
+      const th = r?.top?.length ? `<ul class="threads">${r.top.map((t) => `<li><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.title || 'comment')}</a> · r/${esc(t.sub)}</li>`).join('')}</ul>` : '';
+      const sayCell = says || th ? `<details><summary>${says ? 'Quotes' : ''}${says && th ? ' & ' : ''}${th ? `${r.top.length} threads` : ''}</summary>${says}${th}</details>` : '—';
+      return `<tr><td><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.name)}</a></td><td><span class="pill ${tierCls(v.tier)}">${v.tier}</span></td><td>${st}</td><td class="n">${v.count || 0}</td><td>${ship}</td><td>${promos}</td><td class="n">${r?.mentions ?? '—'}${r?.recent ? `<br><span class="note">${r.recent} this month</span>` : ''}</td><td class="n" style="color:${s > 0.05 ? 'var(--good)' : s < -0.05 ? 'var(--bad)' : 'var(--muted)'}">${s == null ? '—' : (s > 0 ? '+' : '') + s.toFixed(2)}</td><td style="max-width:340px">${sayCell}</td></tr>`;
     }).join('');
 }
 function stats() {
   const live = D.items.filter((i) => i.available && i.tier !== 'B');
   const deals = D.items.filter((i) => i.available && (i.tier === 'B' ? i.bDeal : i.dealRatio >= 1.25)).length;
+  const drops = D.items.filter((i) => i.available && (i.drop || i.restocked || i.isNew)).length;
   const rmed = D.medians['rosin:small'] ?? D.medians['rosin:mid'];
   $('#stats').innerHTML = [
-    [live.length, 'S/A in stock'], [deals, '25%+ under median'], [rmed ? '$' + rmed.toFixed(0) : '—', 'Median rosin $/g'], [ago(D.generatedAt), 'Refreshed'],
+    [live.length, 'S/A in stock'], [deals, '25%+ under median'], [drops, 'Drops, restocks, new'], [rmed ? '$' + rmed.toFixed(0) : '—', 'Median rosin $/g'], [ago(D.generatedAt), 'Refreshed'],
   ].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('');
 }
 function wire() {
@@ -256,15 +418,20 @@ function wire() {
   }
   document.querySelectorAll('#sort button').forEach((b) => { b.setAttribute('aria-pressed', b.dataset.v === S.sort); b.onclick = () => { S.sort = b.dataset.v; document.querySelectorAll('#sort button').forEach((x) => x.setAttribute('aria-pressed', x === b)); save(); render(); }; });
   document.querySelectorAll('[data-tier]').forEach((b) => b.onclick = () => { const t = b.dataset.tier; S.tiers.has(t) ? S.tiers.delete(t) : S.tiers.add(t); b.setAttribute('aria-pressed', S.tiers.has(t)); render(); });
-  const tog = (id, key) => $(id).onclick = (e) => { S[key] = !S[key]; e.currentTarget.setAttribute('aria-pressed', S[key]); render(); };
-  tog('#instock', 'instock'); tog('#hmonly', 'hm'); tog('#sized', 'sized');
+  const tog = (id, key) => $(id).onclick = (e) => { S[key] = !S[key]; e.currentTarget.setAttribute('aria-pressed', S[key]); S.limit = 60; render(); };
+  tog('#instock', 'instock'); tog('#hmonly', 'hm'); tog('#sized', 'sized'); tog('#starred', 'starred'); tog('#moved', 'moved');
   $('#q').oninput = (e) => { S.q = e.target.value; S.limit = 60; render(); };
+  $('#filtersBtn').onclick = (e) => { const open = $('.bar').classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', open); e.currentTarget.textContent = open ? 'Done' : 'Filters'; };
   const sel = $('#vendor');
   for (const v of [...D.vendors].sort((a, b) => a.name.localeCompare(b.name))) if (v.count) sel.add(new Option(`${v.name} (${v.tier})`, v.id));
   sel.onchange = () => { S.vendor = sel.value; render(); };
 }
-fetch('data.json').then((r) => r.json()).then((d) => {
+fetch('data.json', { cache: 'no-cache' }).then((r) => r.json()).then((d) => {
   D = d; V = Object.fromEntries(d.vendors.map((v) => [v.id, v]));
-  stats(); wire(); render(); renderVendors();
-}).catch(() => { $('#list').innerHTML = '<div class="empty">Couldn\'t load data.json. Run the scraper, then republish.</div>'; });
+  for (const i of d.items) { i.effPpg ??= i.bestPpg; i.effGrams ??= i.bestPpgGrams; } // data from before shipping-aware prices
+  G = {}; for (const i of d.items) if (i.group) (G[i.group] ||= []).push(i);
+  stats(); wire(); render(); renderVendors(); syncNote();
+}).catch(() => { $('#list').innerHTML = '<div class="empty">Couldn\'t load the product list. Check your connection and reload.</div>'; });
+loadRemoteWatch();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
