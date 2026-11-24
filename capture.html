@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Weed Scout Capture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Same palette as the main Weed Scout page: rosin-amber accent on a sage neutral. */
+:root {
+  --bg: #f3f5f2; --surface: #fff; --sunk: #e8ece6; --line: #d5dbd2; --fg: #1c231e; --muted: #5d6a60;
+  --accent: #a8620a; --accent-soft: #f6e6cc; --good: #2f7d4a; --good-soft: #dcefe2; --bad: #b23b2e; --bad-soft: #f7dfdb;
+  --display: "Sora", "Segoe UI", system-ui, sans-serif; --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141815; --surface: #1c211d; --sunk: #232a25; --line: #313a33; --fg: #e6ebe5; --muted: #9aa69c;
+  --accent: #e9a23b; --accent-soft: #3a2c15; --good: #6cc98b; --good-soft: #1d3325; --bad: #ef8577; --bad-soft: #3b201c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141815; --surface: #1c211d; --sunk: #232a25; --line: #313a33; --fg: #e6ebe5; --muted: #9aa69c;
+  --accent: #e9a23b; --accent-soft: #3a2c15; --good: #6cc98b; --good-soft: #1d3325; --bad: #ef8577; --bad-soft: #3b201c; color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body) }
+main { max-width: 640px; margin: 0 auto; padding: 28px 16px 48px; display: flex; flex-direction: column; gap: 22px }
+h1 { font: 700 26px/1.15 var(--display); margin: 0; letter-spacing: -0.02em } h1 span { color: var(--accent) }
+h2 { font: 600 17px var(--display); margin: 0 0 6px }
+p { margin: 0 0 8px } .muted { color: var(--muted); font-size: 14px }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px }
+ol { margin: 6px 0 0; padding-left: 20px } li { margin-bottom: 6px }
+a { color: var(--accent) }
+.btn { display: inline-block; font: 600 14px var(--body); padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; text-decoration: none; cursor: pointer }
+.btn.ghost { background: transparent; color: var(--fg); border-color: var(--line) }
+.bm { cursor: grab; background: var(--accent-soft); color: var(--fg); border-color: var(--accent) }
+input { width: 100%; font: 14px var(--mono); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; margin: 6px 0 10px }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+#status { font-weight: 600 } #status.ok { color: var(--good) } #status.err { color: var(--bad) }
+.status-card.ok { background: var(--good-soft); border-color: transparent } .status-card.err { background: var(--bad-soft); border-color: transparent }
+code { font: 13px var(--mono); background: var(--sunk); padding: 1px 5px; border-radius: 4px }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+[hidden] { display: none !important }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Weed <span>Scout</span> capture</h1>
+    <p class="muted">Updates White Ash Reserve and Crysp from any phone or computer. Their bot checks block the daily refresh, so you open the store, then tap the bookmark.</p>
+  </div>
+
+  <div class="card status-card" id="statusCard" hidden>
+    <div id="status"></div>
+    <div class="muted" id="detail"></div>
+  </div>
+
+  <div class="card" id="tokenCard">
+    <h2>1. Connect GitHub on this device</h2>
+    <p class="muted" id="tokenState"></p>
+    <div id="tokenForm">
+      <ol class="muted">
+        <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub's new token page</a>.</li>
+        <li>Name it "Weed Scout capture". Under <b>Repository access</b>, pick <b>Only select repositories</b> → <code>weed-scout</code>.</li>
+        <li>Under <b>Permissions → Repository permissions</b>, set <b>Contents</b> to <b>Read and write</b>. Generate it and paste it below.</li>
+      </ol>
+      <label for="tok" class="muted">Token (stays in this browser only)</label>
+      <input id="tok" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+      <button class="btn" id="saveTok">Save</button>
+    </div>
+    <div class="row" id="tokenSaved" hidden><button class="btn ghost" id="forget">Remove token from this device</button></div>
+  </div>
+
+  <div class="card">
+    <h2>2. Add the bookmark</h2>
+    <p class="muted"><b>Computer:</b> drag this button to your bookmarks bar.</p>
+    <p><a class="btn bm" id="bm" href="#" onclick="return false">Weed Scout capture</a></p>
+    <p class="muted"><b>Phone:</b> bookmark any page, then edit that bookmark: name it <b>Weed Scout capture</b> and replace its address with the copied code.</p>
+    <button class="btn ghost" id="copy">Copy bookmark code</button> <span class="muted" id="copied"></span>
+  </div>
+
+  <div class="card">
+    <h2>3. Use it</h2>
+    <ol class="muted">
+      <li>Open <a href="https://whiteashreserve.com" target="_blank" rel="noopener">White Ash Reserve</a> or <a href="https://shopcrysp.com" target="_blank" rel="noopener">Crysp</a> and get past the security check.</li>
+      <li>Tap the <b>Weed Scout capture</b> bookmark. On Android Chrome, type "Weed Scout capture" in the address bar and pick the bookmark.</li>
+      <li>This page opens, uploads the catalog, and the site refreshes in about an hour.</li>
+    </ol>
+  </div>
+</main>
+
+<script>
+const REPO = 'rwardensky/weed-scout', BRANCH = 'main';
+const STORES = { 'https://whiteashreserve.com': 'war', 'https://www.whiteashreserve.com': 'war', 'https://shopcrysp.com': 'crysp', 'https://www.shopcrysp.com': 'crysp' };
+const NAMES = { war: 'White Ash Reserve', crysp: 'Crysp' };
+const $ = (s) => document.querySelector(s);
+const store = { get: () => { try { return localStorage.getItem('ws-token') || ''; } catch { return ''; } },
+  set: (v) => { try { v ? localStorage.setItem('ws-token', v) : localStorage.removeItem('ws-token'); } catch {} } };
+let pending = null, busy = false;
+
+function status(text, kind = '', detail = '') {
+  $('#statusCard').hidden = false;
+  $('#statusCard').className = 'card status-card ' + kind;
+  $('#status').className = kind; $('#status').textContent = text; $('#detail').textContent = detail;
+}
+function showToken() {
+  const has = !!store.get();
+  $('#tokenForm').hidden = has; $('#tokenSaved').hidden = !has;
+  $('#tokenState').textContent = has ? 'Connected. This browser can upload captures.' : 'Needed once per browser so uploads can save to the site.';
+}
+$('#saveTok').onclick = () => { const v = $('#tok').value.trim(); if (!v) return; store.set(v); $('#tok').value = ''; showToken(); if (pending) upload(pending); };
+$('#forget').onclick = () => { store.set(''); showToken(); };
+
+// Bookmark code comes from bookmarklet.js next to this page.
+let code = '';
+fetch('bookmarklet.js', { cache: 'no-store' }).then((r) => r.text()).then((src) => {
+  code = 'javascript:' + encodeURIComponent(src.replace(/^\s*\/\/.*$/gm, ''));
+  $('#bm').href = code;
+});
+$('#copy').onclick = async () => { try { await navigator.clipboard.writeText(code); $('#copied').textContent = 'Copied.'; } catch { $('#copied').textContent = 'Copy failed; long-press the button above and copy its link instead.'; } };
+
+// Talk to the bookmark running in the store tab.
+if (window.opener) { try { window.opener.postMessage('ws-ready', '*'); } catch {} status('Waiting for the store tab…'); }
+addEventListener('message', (e) => {
+  const id = STORES[e.origin]; const m = e.data;
+  if (!id || !m || typeof m !== 'object') return;
+  if (m.ws === 'status') status(String(m.text));
+  else if (m.ws === 'error') status('Capture failed', 'err', String(m.text));
+  else if (m.ws === 'capture' && m.id === id) {
+    pending = { id, products: m.products, photos: m.photos || {} };
+    if (!store.get()) { status(`Got ${m.products.length} products from ${NAMES[id]}.`, '', 'Connect GitHub in step 1 to upload them.'); $('#tok').focus(); }
+    else upload(pending);
+  }
+});
+
+async function gh(path, opts = {}) {
+  const r = await fetch(`https://api.github.com/repos/${REPO}${path}`, { ...opts, headers: { Authorization: 'Bearer ' + store.get(), Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' } });
+  if (!r.ok) { const t = await r.text(); const err = new Error(`${r.status} ${t.slice(0, 160)}`); err.status = r.status; throw err; }
+  return r.status === 204 ? null : r.json();
+}
+const b64 = (s) => { const bytes = new TextEncoder().encode(s); let bin = ''; for (const x of bytes) bin += String.fromCharCode(x); return btoa(bin); };
+
+async function upload(cap) {
+  if (busy) return; busy = true;
+  try {
+    if (!Array.isArray(cap.products) || cap.products.length < 5) throw new Error(`Only ${cap.products?.length || 0} products came back, so nothing was uploaded. Reload the store and try again.`);
+    // Skip photos already in the repo.
+    let existing = new Set();
+    if (Object.keys(cap.photos).length) {
+      try { existing = new Set((await gh(`/contents/images/${cap.id}?ref=${BRANCH}`)).map((f) => f.name)); } catch (e) { if (e.status !== 404) throw e; }
+    }
+    const newPhotos = Object.entries(cap.photos).filter(([n]) => /^[\w.-]+\.(webp|jpg)$/.test(n) && !existing.has(n));
+    const tree = [];
+    let n = 0;
+    for (const [name, data] of newPhotos) {
+      status(`Uploading photos ${++n}/${newPhotos.length}…`);
+      const blob = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: data, encoding: 'base64' }) });
+      tree.push({ path: `images/${cap.id}/${name}`, mode: '100644', type: 'blob', sha: blob.sha });
+    }
+    status('Saving the catalog…');
+    const json = JSON.stringify({ fetchedAt: new Date().toISOString(), products: cap.products });
+    const blob = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: b64(json), encoding: 'base64' }) });
+    tree.push({ path: `captures/browser-${cap.id}.json`, mode: '100644', type: 'blob', sha: blob.sha });
+    for (let attempt = 0; ; attempt++) {
+      const head = (await gh(`/git/ref/heads/${BRANCH}`)).object.sha;
+      const base = (await gh(`/git/commits/${head}`)).tree.sha;
+      const t = await gh('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: base, tree }) });
+      const c = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: `Capture ${NAMES[cap.id]} (${cap.products.length} products)`, tree: t.sha, parents: [head] }) });
+      try { await gh(`/git/refs/heads/${BRANCH}`, { method: 'PATCH', body: JSON.stringify({ sha: c.sha }) }); break; }
+      catch (e) { if (e.status !== 422 || attempt >= 3) throw e; } // someone else pushed; rebuild on the new head
+    }
+    pending = null;
+    status(`Uploaded ${cap.products.length} products from ${NAMES[cap.id]}.`, 'ok',
+      `${newPhotos.length ? newPhotos.length + ' new photos saved. ' : ''}The site refreshes in about an hour. You can close this tab.`);
+  } catch (e) {
+    const msg = String(e.message || e);
+    status('Upload failed', 'err', /^(401|403)/.test(msg) ? 'GitHub rejected the token. Check that it has Contents: Read and write on weed-scout and hasn\'t expired, then save it again.' : msg);
+  } finally { busy = false; }
+}
+showToken();
+</script>
+</body>
+</html>
