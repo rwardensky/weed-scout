@@ -647,6 +647,65 @@ function vendorStats() {
   return out;
 }
 
+// ---------- local dispensary menus (captures/local-<id>.json from the capture bookmark on Dutchie) ----------
+// Deal = price per gram after your discount vs the median of the same type and size on that store's own menu,
+// so a good Ayr deal ranks next to a good online deal. vsOnline compares with the online S/A median.
+const LOCAL_CAT = (p) => {
+  const t = `${p.name} ${p.subcategory || ''}`;
+  if (p.category === 'Flower') return 'flower';
+  if (p.category === 'Pre-Rolls') return 'preroll';
+  if (p.category === 'Vaporizers') return 'vape';
+  if (p.category === 'Concentrate') return /rosin|hash|solventless|ice ?water/i.test(t) ? 'rosin' : 'concentrate';
+  return 'edible';
+};
+function localStore(L, onlineMedians) {
+  const snap = readJson(path.join(DIR, 'captures', `local-${L.id}.json`), null);
+  const stat = { id: L.id, name: L.name, url: L.url, tier: 'L', platform: 'local', local: true, place: L.place, discount: L.discount || null, status: 'ok', count: 0, scrapedAt: snap?.fetchedAt || null, shipping: {}, promos: [], noShip: [] };
+  if (!snap?.products?.length) { stat.status = 'error'; stat.error = 'No menu captured yet: open the Dutchie menu and tap the capture bookmark'; return { items: [], stat }; }
+  if (Date.now() - new Date(snap.fetchedAt) > 3 * 864e5) stat.status = 'stale';
+  const off = (L.discount?.pct || 0) / 100;
+  const by = new Map();
+  for (const p of snap.products) { const k = p.handle || p.url; if (!by.has(k)) by.set(k, []); by.get(k).push(p); }
+  const items = [];
+  for (const [handle, rows] of by) {
+    const p = rows[0], category = LOCAL_CAT(p);
+    const variants = rows.map((r) => {
+      const g = category === 'edible' ? null : parseGrams(r.size);
+      const pay = +(r.price * (1 - off)).toFixed(2);
+      return { label: r.size || 'Each', grams: g, price: pay, menuPrice: r.price, compareAt: r.originalPrice ? +(r.originalPrice * (1 - off)).toFixed(2) : null, available: true, ppg: g ? +(pay / g).toFixed(2) : null };
+    });
+    const best = variants.filter((x) => x.ppg).sort((a, b) => a.ppg - b.ppg)[0] || null;
+    const thcPct = p.thcUnit === '%' ? p.thc : null;
+    items.push({
+      id: `${L.id}:${handle}`, vendorId: L.id, local: true, title: p.name, brand: p.brand || null, category, url: p.url, image: p.image || null, variants,
+      available: true, minPrice: Math.min(...variants.map((x) => x.price)), bestPpg: best?.ppg ?? null, bestPpgLabel: best?.label ?? null, bestPpgGrams: best?.grams ?? null, bestPpgPrice: best?.price ?? null,
+      effPpg: best?.ppg ?? null, effGrams: best?.grams ?? null, onSale: variants.some((x) => x.compareAt),
+      thca: thcPct, thcMg: p.thcUnit === 'mg' ? p.thc : null, strainType: p.type || null, effects: p.effects || [], terpenes: p.terpenes ?? null,
+      hashmaker: findHashmaker(`${p.name} ${p.brand || ''}`), thirdParty: p.brand || null, stale: stat.status === 'stale' || undefined, tier: 'L', pinned: false,
+    });
+  }
+  // deal vs this store's own menu (same type + size band), and vs the online S/A median
+  const med = {};
+  for (const i of items) if (i.effPpg) (med[`${i.category}:${bucket(i)}`] ||= []).push(i.effPpg);
+  const catAll = {}; for (const [k, a] of Object.entries(med)) (catAll[k.split(':')[0]] ||= []).push(...a);
+  for (const i of items) {
+    const k = `${i.category}:${bucket(i)}`;
+    const m = median((med[k]?.length >= 5 ? med[k] : catAll[i.category]) || []);
+    i.dealRatio = i.effPpg && m ? +(m / i.effPpg).toFixed(2) : null;
+    i.vsOnline = i.effPpg && onlineMedians[k] ? +(onlineMedians[k] / i.effPpg).toFixed(2) : null;
+    // quality: a mid baseline, plus potency for its type
+    let q = 30 + 8;
+    if (i.thca != null) q += i.category === 'flower' || i.category === 'preroll' ? Math.max(-6, Math.min(12, (i.thca - 22) * 1.2)) : Math.max(-6, Math.min(12, (i.thca - 70) * 0.6));
+    if (i.hashmaker) q += 6;
+    i.quality = Math.round(Math.max(0, Math.min(100, q * (100 / 80))));
+    i.value = i.dealRatio ? Math.round(i.quality * Math.sqrt(Math.max(0.5, Math.min(2, i.dealRatio)))) : null;
+    i.group = groupKey(i);
+  }
+  stat.count = items.length;
+  stat.localMedians = Object.fromEntries(Object.entries(med).map(([k, a]) => [k, +median(a).toFixed(2)]));
+  return { items, stat };
+}
+
 // ---------- main ----------
 async function main() {
   const prev = readJson(path.join(DIR, 'data.json'), { items: [], vendors: [] });
@@ -794,6 +853,12 @@ async function main() {
       i.valueCode = Math.round(i.quality * Math.sqrt(Math.max(0.5, Math.min(2, i.dealRatioCode))));
       if (i.tier === 'B') i.bDealCode = i.dealRatioCode >= 1.33;
     }
+  }
+  // local dispensaries (Ayr Carytown): captured menus, your standing discount taken off every price
+  for (const L of cfg.local || []) {
+    const { items: li, stat } = localStore(L, medians);
+    vstat.push(stat); items.push(...li);
+    log(`== ${L.name} (local): ${li.length} products${stat.status === 'stale' ? ' (menu older than 3 days)' : ''}`);
   }
   updateHistory(items);
   const out = { generatedAt: new Date().toISOString(), medians, vendors: vstat, items };

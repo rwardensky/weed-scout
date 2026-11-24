@@ -136,7 +136,7 @@ if (digestDue) {
   const short = (s, n = 46) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
   const under = (i) => { const p = i.dealRatio ? Math.round((1 - 1 / i.dealRatio) * 100) : 0; return p >= 5 ? `${p}% under` : ''; };
   const line = (i) => ({ t: `${short(i.title)} · ${vname[i.vendorId]} · ${ppg(i)} ${under(i) && `(${under(i)})`}`, url: i.url });
-  const live = data.items.filter((i) => i.available && !i.stale && i.value && !i.pinned && (i.tier !== 'B' || i.bDeal) && shipsToMe(i.vendorId) && ratings[i.id]?.r !== -1);
+  const live = data.items.filter((i) => i.available && !i.stale && !i.local && i.value && !i.pinned && (i.tier !== 'B' || i.bDeal) && shipsToMe(i.vendorId) && ratings[i.id]?.r !== -1);
   const sections = [];
   for (const [k, label] of Object.entries(CAT)) {
     const top = live.filter((i) => i.category === k).sort((a, b) => b.value - a.value).slice(0, 3);
@@ -144,6 +144,10 @@ if (digestDue) {
   }
   const weekAgo = (d) => d && (Date.now() - new Date(d + 'T12:00:00Z')) / 864e5 <= 7;
   const fresh = data.items.filter((i) => i.available && i.tier === 'S' && weekAgo(i.firstSeen) && i.firstSeen > (read('history.json', {}).started || '')).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).slice(0, 5);
+  for (const v of data.vendors.filter((x) => x.local && x.count)) {
+    const top = data.items.filter((i) => i.vendorId === v.id && !i.stale && i.value && ratings[i.id]?.r !== -1).sort((a, b) => b.value - a.value).slice(0, 4);
+    if (top.length) sections.push({ h: `${v.name} best deals${v.discount ? ` (with your ${v.discount.pct}%)` : ''}`, rows: top.map(line) });
+  }
   if (fresh.length) sections.push({ h: 'New from S-tier this week', rows: fresh.map(line) });
   const mine = data.items.filter((i) => items.has(i.id) || (i.group && strains.has(i.group)));
   const moved = mine.filter((i) => (i.drop && weekAgo(i.drop.at)) || (i.restocked && weekAgo(i.restocked)));

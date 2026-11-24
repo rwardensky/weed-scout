@@ -5,13 +5,14 @@
 (async () => {
   const SITE = 'https://rwardensky.github.io';
   const host = location.hostname.replace(/^www\./, '');
-  const id = { 'whiteashreserve.com': 'war', 'shopcrysp.com': 'crysp' }[host];
-  if (!id) { alert('Weed Scout: open White Ash Reserve or Crysp first, then tap this bookmark.'); return; }
+  const id = host === 'dutchie.com' && /ayr-va-carytown/.test(location.pathname) ? 'ayr' : { 'whiteashreserve.com': 'war', 'shopcrysp.com': 'crysp' }[host];
+  if (!id) { alert('Weed Scout: open White Ash Reserve, Crysp, or the Ayr Carytown menu on dutchie.com first, then tap this bookmark.'); return; }
   // Open the upload page now, while the tap still counts as a click (later would be popup-blocked).
   const win = window.open(SITE + '/weed-scout/capture.html', 'weedscout-capture');
   if (!win) { alert('Weed Scout: allow pop-ups for this site, then tap the bookmark again.'); return; }
   const ready = new Promise((res) => addEventListener('message', (e) => { if (e.origin === SITE && e.data === 'ws-ready') res(); }));
   const say = (text) => win.postMessage({ ws: 'status', text }, SITE);
+  if (id === 'ayr') { await ayr(); return; }
   try {
     const base = '/wp-json/wc/store/v1/products';
     const all = async (q) => {
@@ -75,6 +76,35 @@
     win.postMessage({ ws: 'capture', id, products, photos }, SITE);
   } catch (e) {
     win.postMessage({ ws: 'error', text: e.message || String(e) }, SITE);
+  }
+  // Ayr Carytown (Richmond, VA) medical menu on Dutchie, the same query Bud Finder uses
+  async function ayr() {
+    try {
+      await ready.catch(() => {});
+      say('Reading the Ayr Carytown menu…');
+      const page = async (n) => {
+        const variables = { includeEnterpriseSpecials: false, productsFilter: { dispensaryId: '68c87422b5ad629d60f984bb', pricingType: 'med', strainTypes: [], subcategories: [], Status: 'Active', types: [], useCache: true, isDefaultSort: true, sortBy: 'alpha', sortDirection: 1, bypassOnlineThresholds: false, ignoreQuantityThresholds: false, isKioskMenu: false, removeProductsBelowOptionThresholds: true, platformType: 'ONLINE_MENU', preOrderType: null }, page: n, perPage: 100 };
+        const ext = { persistedQuery: { version: 1, sha256Hash: '91c683bfbce943059b6c958264577c1cff4a2623889a1c9db0be4a10ca7afd35' } };
+        const r = await fetch('/api-2/graphql?operationName=FilteredProducts&variables=' + encodeURIComponent(JSON.stringify(variables)) + '&extensions=' + encodeURIComponent(JSON.stringify(ext)), { headers: { 'content-type': 'application/json' } });
+        const j = await r.json(); if (j.errors) throw new Error(JSON.stringify(j.errors).slice(0, 160));
+        return j.data.filteredProducts;
+      };
+      const first = await page(0); let all = first.products;
+      for (let n = 1; n < first.queryInfo.totalPages; n++) all = all.concat((await page(n)).products);
+      const eff = (k) => k.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/-/g, ' ').toLowerCase();
+      const products = all.filter((p) => !['Accessories', 'Apparel'].includes(p.type)).flatMap((p) => {
+        const thc = p.THCContent?.range?.length ? Math.max(...p.THCContent.range) : null;
+        const effects = Object.entries(p.effects || {}).filter(([, v]) => v >= 6).sort((a, b) => b[1] - a[1]).map(([k]) => eff(k));
+        const reg = p.medicalPrices || p.Prices || [], sale = p.medicalSpecialPrices || [];
+        return (p.Options || ['N/A']).map((opt, i) => {
+          const price = sale[i] ?? reg[i];
+          return { name: p.Name, handle: p.cName, brand: p.brandName || '', category: p.type, subcategory: p.subcategory || '', type: p.strainType === 'N/A' ? '' : p.strainType,
+            thc, thcUnit: p.THCContent?.unit === 'MILLIGRAMS' ? 'mg' : '%', price, originalPrice: reg[i] > price ? reg[i] : null, size: opt === 'N/A' ? '' : opt,
+            effects, terpenes: p.totalTerpenes?.range?.[0] ?? null, image: p.Image || null, url: 'https://dutchie.com/embedded-menu/ayr-va-carytown/product/' + p.cName };
+        }).filter((x) => x.price != null);
+      });
+      win.postMessage({ ws: 'capture', id: 'ayr', products, photos: {} }, SITE);
+    } catch (e) { win.postMessage({ ws: 'error', text: e.message || String(e) }, SITE); }
   }
   function dedupe(vs) { const seen = new Set(); return vs.filter((v) => { const k = v.label + '|' + v.price; if (seen.has(k)) return false; seen.add(k); return true; }); }
 })();

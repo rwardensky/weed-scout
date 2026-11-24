@@ -76,6 +76,7 @@ main { padding-block: 18px 40px; display: flex; flex-direction: column; gap: 28p
 .name > a:hover { color: var(--accent); text-decoration: underline }
 .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--muted); align-items: center }
 .pill { font: 600 11px var(--mono); padding: 1px 6px; border-radius: 4px; color: #fff }
+.t-L { background: var(--good) }
 .t-S { background: var(--tS) } .t-A, .t-Ap { background: var(--tA) } .t-B, .t-C, .t-D { background: var(--tB) }
 .tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line) }
 .tag.hm { border-color: var(--accent); color: var(--accent); font-weight: 600 }
@@ -166,6 +167,14 @@ details summary { cursor: pointer; color: var(--accent) }
 <div class="bar">
   <div class="wrap">
     <div class="row">
+      <div class="seg tabs" id="scope" role="tablist" aria-label="Where to buy">
+        <button data-s="online" role="tab" aria-pressed="true">Online</button>
+        <button data-s="local" role="tab" aria-pressed="false">Ayr Carytown</button>
+        <button data-s="all" role="tab" aria-pressed="false">Everything</button>
+      </div>
+      <span class="note" id="scopeNote"></span>
+    </div>
+    <div class="row">
       <span class="lbl">Rank by</span>
       <div class="seg" id="sort">
         <button data-v="value" aria-pressed="true">Best overall</button>
@@ -179,6 +188,10 @@ details summary { cursor: pointer; color: var(--accent) }
       <button class="chip" id="filtersBtn" aria-expanded="false" aria-controls="cats">Filters</button>
     </div>
     <div class="row f" id="cats"><span class="lbl">Type</span></div>
+    <div class="row f" id="moodrow" hidden><span class="lbl">Mood</span><span id="moods"></span>
+      <span class="lbl" style="margin-left:8px">Strain</span>
+      <div class="seg" id="strainSeg"><button data-t="" aria-pressed="true">Any</button><button data-t="indica" aria-pressed="false">Indica</button><button data-t="hybrid" aria-pressed="false">Hybrid</button><button data-t="sativa" aria-pressed="false">Sativa</button></div>
+    </div>
     <div class="row f">
       <span class="lbl">Vendors</span>
       <button class="chip" data-tier="S" aria-pressed="true">S tier</button>
@@ -247,12 +260,12 @@ details summary { cursor: pointer; color: var(--accent) }
 <dialog id="cmpDlg" aria-labelledby="cmpTitle"><div class="dlghead"><h2 id="cmpTitle">Compare</h2><button class="more" id="cmpClose">Close</button></div><div id="cmpBody" class="tbl-wrap"></div></dialog>
 
 <script>
-const CATS = { rosin: 'Rosin & hash', flower: 'Flower', concentrate: 'Other concentrates', vape: 'Vapes', preroll: 'Pre-rolls' };
-const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, codes: true, shipsMe: true, limit: 60, open: new Set(), compare: new Set() };
+const CATS = { rosin: 'Rosin & hash', flower: 'Flower', concentrate: 'Other concentrates', vape: 'Vapes', preroll: 'Pre-rolls', edible: 'Edibles & other' };
+const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, codes: true, shipsMe: true, scope: 'online', moods: new Set(), strain: '', limit: 60, open: new Set(), compare: new Set() };
 let D = null, V = {}, G = {};
 const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
-{ const saved = ls.get('scout', null); if (saved) { S.sort = saved.sort || S.sort; if (saved.cats) S.cats = new Set(saved.cats); if (saved.codes === false) S.codes = false; } }
-const save = () => ls.set('scout', { sort: S.sort, cats: [...S.cats], codes: S.codes });
+{ const saved = ls.get('scout', null); if (saved) { S.sort = saved.sort || S.sort; if (saved.cats) S.cats = new Set([...saved.cats, ...(saved.cats.includes('edible') ? [] : ['edible'])]); if (saved.scope) S.scope = saved.scope; if (saved.codes === false) S.codes = false; } }
+const save = () => ls.set('scout', { sort: S.sort, cats: [...S.cats], codes: S.codes, scope: S.scope });
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = (n) => n == null ? '—' : '$' + (n >= 100 ? Math.round(n) : n.toFixed(2));
@@ -282,6 +295,7 @@ function changed() { W.updatedAt = Date.now(); ls.set('ws-watch', plainW()); ven
 // does this store ship to your state? Your own mark wins; otherwise the store's policy page
 const STATE_NAMES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
 function shipStatus(vid) {
+  if (V[vid]?.local) return 'yes';
   const mine = W.settings.vendorShip[vid];
   if (mine === true) return 'yes';
   if (mine === false) return 'no';
@@ -360,18 +374,26 @@ function visible() {
   const q = S.q.toLowerCase();
   return D.items.filter((i) => {
     const t = i.tier === 'A+' ? 'A' : i.tier;
+    if (S.scope === 'online' && i.local) return false;
+    if (S.scope === 'local' && !i.local) return false;
     if (S.starred) return W.items.has(i.id) || (i.group && W.strains.has(i.group)) || W.ratings[i.id] ? (!q || i.title.toLowerCase().includes(q)) : false;
-    if (i.pinned) { if (!S.tiers.has('P')) return false; }
-    else {
-      if (!S.tiers.has(t)) return false;
-      if (t === 'B' && !(i.bDeal || (S.codes && i.bDealCode))) return false;
+    if (i.local) {
+      if (S.moods.size && !(i.effects || []).some((e) => S.moods.has(e))) return false;
+      if (S.strain && !(i.strainType || '').toLowerCase().startsWith(S.strain)) return false;
+    } else {
+      if (S.scope !== 'online' && (S.moods.size || S.strain)) return false; // mood and strain type come from the dispensary menu
+      if (i.pinned) { if (!S.tiers.has('P')) return false; }
+      else {
+        if (!S.tiers.has(t)) return false;
+        if (t === 'B' && !(i.bDeal || (S.codes && i.bDealCode))) return false;
+      }
+      if (S.shipsMe && !shipsToMe(i.vendorId)) return false;
     }
     if (!S.cats.has(i.category)) return false;
     if (S.vendor && i.vendorId !== S.vendor) return false;
-    if (S.shipsMe && !shipsToMe(i.vendorId)) return false;
     if (S.instock && !i.available) return false;
     if (S.hm && !(i.hashmaker || i.thirdParty)) return false;
-    if (S.sized && !pp(i)) return false;
+    if (S.sized && !pp(i) && !(i.local && i.category === 'edible')) return false;
     if (S.moved && !moved(i)) return false;
     if (q && !`${i.title} ${V[i.vendorId]?.name} ${i.hashmaker || ''} ${i.thirdParty || ''}`.toLowerCase().includes(q)) return false;
     return true;
@@ -400,6 +422,11 @@ function moveTags(i) {
   return t.join('');
 }
 function priceCell(i) {
+  if (i.local) {
+    const d = V[i.vendorId]?.discount;
+    const top = i.effPpg ? `${money(i.effPpg)}/g` : money(i.minPrice);
+    return `<div class="num">${top}<small>${i.effGrams ? i.effGrams + 'g · ' : ''}in store${d ? `, with ${d.pct}% ${esc(d.label)}` : ''}</small></div>`;
+  }
   if (!i.effPpg) return `<div class="num">${money(i.minPrice)}<small>from, no weight listed</small></div>`;
   const ship = i.shipPpg ? (i.shipFree ? 'free shipping' : `with ${i.shipEstimated ? 'est. ' : ''}shipping`) : 'before shipping';
   const size = i.effGrams ? `${i.effGrams}g${i.weightAssumed ? ' (assumed)' : ''}` : '';
@@ -434,14 +461,17 @@ function detailsHtml(i) {
   const sizes = [...bySize.values()].sort((a, b) => a.price - b.price).slice(0, 8).map((r) => `<tr><td>${esc(r.label)}${r.n > 1 ? ` <span class="note">${r.inStock}/${r.n} flavors in stock</span>` : r.inStock ? '' : ' <span class="tag oos">sold out</span>'}</td><td class="n">${money(r.price)}</td><td class="n">${r.ppg ? money(r.ppg) + '/g' : '—'}</td></tr>`).join('');
   const hist = spark(i.hist);
   const alts = others(i).sort((a, b) => (a.effPpg ?? 1e9) - (b.effPpg ?? 1e9)).slice(0, 8);
-  const ship = v.shipping?.freeOver ? `Free shipping over $${v.shipping.freeOver}${v.shipping.cost ? `, else $${v.shipping.cost}` : ''}.` : 'Shipping terms not published; estimated.';
+  const vs = i.vsOnline ? Math.round((1 - 1 / i.vsOnline) * 100) : null;
+  const ship = i.local
+    ? `In-store pickup. Prices include your ${v.discount?.pct || 0}% ${esc(v.discount?.label || 'discount')} (menu ${i.variants.map((x) => money(x.menuPrice)).join(' / ')}). Deal is vs the rest of the ${esc(v.name)} menu${vs != null ? `; vs typical online THCa it's ${vs >= 0 ? `${vs}% cheaper` : `${-vs}% pricier`} per gram` : ''}.`
+    : v.shipping?.freeOver ? `Free shipping over $${v.shipping.freeOver}${v.shipping.cost ? `, else $${v.shipping.cost}` : ''}.` : 'Shipping terms not published; estimated.';
   const promos = (v.promos || []).map((p) => p.code ? `<code class="promo">${esc(p.code)}</code> ${esc(p.text.replace(new RegExp(`code\\s*[:=]?\\s*${p.code}`, 'i'), '').trim())}` : esc(p.text)).join('<br>');
   const my = W.ratings[i.id] || {};
   const addon = addOnHint(i);
   return `<div class="details" id="d-${esc(i.id)}">
     <div><h3>Sizes</h3><table>${sizes}</table><p class="note" style="margin:6px 0 0">${esc(v.name)}: ${ship}${promos ? `<br>${promos}` : ''}</p>
       ${addon ? `<p class="note addon">${addon}</p>` : ''}
-      ${i.thca ? `<p class="note">${i.thca}% THCa as listed by the store · ${mgPer$(i) ?? '—'} mg THCa per dollar</p>` : ''}
+      ${i.thca ? `<p class="note">${i.thca}% ${i.local ? 'THC' : 'THCa'} as listed by the ${i.local ? 'dispensary' : 'store'} · ${mgPer$(i) ?? '—'} mg per dollar</p>` : ''}
       ${labLine(i)}</div>
     <div><h3>Your rating</h3>
       <div class="row"><button class="watchbtn" data-rate="1" data-id="${esc(i.id)}" aria-pressed="${my.r > 0}">👍 Liked it</button><button class="watchbtn" data-rate="-1" data-id="${esc(i.id)}" aria-pressed="${my.r < 0}">👎 Not for me</button></div>
@@ -482,10 +512,10 @@ function render() {
       ${i.image ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" tabindex="-1"><img class="thumb" loading="lazy" referrerpolicy="no-referrer" src="${esc(thumb(i.image))}" data-full="${esc(i.image)}" alt="${esc(i.title)}" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb'}))}"></a>` : '<div class="thumb"></div>'}
       <div class="name">
         <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a>
-        <div class="meta"><span class="pill ${tierCls(i.tier)}">${esc(i.tier)}</span>${esc(v.name || i.vendorId)} · ${CATS[i.category]}
-          ${maker ? `<span class="tag ${i.hashmaker ? 'hm' : ''}">${esc(maker)}</span>` : ''}
+        <div class="meta"><span class="pill ${tierCls(i.tier)}">${i.local ? 'Local' : esc(i.tier)}</span>${esc(v.name || i.vendorId)} · ${CATS[i.category]}${i.strainType ? ` · ${esc(i.strainType)}` : ''}
+          ${maker && !i.local ? `<span class="tag ${i.hashmaker ? 'hm' : ''}">${esc(maker)}</span>` : ''}${i.local ? (i.effects || []).slice(0, 3).map((e) => `<span class="tag">${esc(e)}</span>`).join('') + (i.thcMg ? `<span class="tag">${i.thcMg}mg THC</span>` : i.thca && i.local ? `<span class="tag">${i.thca}% THC</span>` : '') : ''}
           ${i.onSale ? '<span class="tag sale">On sale</span>' : ''}${!i.available ? '<span class="tag oos">Sold out</span>' : ''}
-          ${i.stale ? '<span class="tag oos">Cached</span>' : ''}${moveTags(i)}${i.thca ? `<span class="tag" title="${mgPer$(i) ? `${mgPer$(i)} mg THCa per dollar` : ''}">${i.thca}% THCa</span>` : ''}${W.ratings[i.id]?.r ? `<span class="tag ${W.ratings[i.id].r > 0 ? 'move' : 'sale'}">${W.ratings[i.id].r > 0 ? '👍 You liked' : '👎 Not for you'}</span>` : ''}${rating ? `<span>${rating}</span>` : ''}${rd}
+          ${i.stale ? '<span class="tag oos">Cached</span>' : ''}${moveTags(i)}${i.thca && !i.local ? `<span class="tag" title="${mgPer$(i) ? `${mgPer$(i)} mg THCa per dollar` : ''}">${i.thca}% THCa</span>` : ''}${W.ratings[i.id]?.r ? `<span class="tag ${W.ratings[i.id].r > 0 ? 'move' : 'sale'}">${W.ratings[i.id].r > 0 ? '👍 You liked' : '👎 Not for you'}</span>` : ''}${rating ? `<span>${rating}</span>` : ''}${rd}
           <button class="linkbtn" data-open="${esc(i.id)}" aria-expanded="${open}">${alts.length ? `Also at ${new Set(alts.map((a) => a.vendorId)).size} vendor${new Set(alts.map((a) => a.vendorId)).size > 1 ? 's' : ''}${cheaper ? `, ${cheaper} cheaper` : ''}` : 'Details'}</button></div>
       </div>
       ${priceCell(i)}
@@ -536,7 +566,7 @@ function orderTotal(vid, lines) {
 const variantsOf = (i) => i.variants.filter((x) => x.available && x.grams && x.price > 0).map((x) => ({ item: i, label: x.label, price: x.price, grams: x.grams }));
 // "Add X to reach free shipping": only shown when it lowers the per-gram cost of the whole order
 function addOnHint(i) {
-  if (!i.available || !i.effGrams) return '';
+  if (i.local || !i.available || !i.effGrams) return '';
   const sh = shipFor(i.vendorId); if (sh.freeOver == null) return '';
   const mine = variantsOf(i).find((x) => x.label === i.shipLabel) || variantsOf(i).sort((a, b) => a.price / a.grams - b.price / b.grams)[0];
   if (!mine) return '';
@@ -652,7 +682,7 @@ function renderStash() {
 function syncState() { const ms = $('#myState'); if (ms) ms.value = W.settings.state; const n = $('#stateName'); if (n) n.textContent = STATE_NAMES[W.settings.state] || W.settings.state; }
 
 function renderVendors() {
-  const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5 };
+  const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5, L: 6 };
   const vs = [...D.vendors].sort((a, b) => order[a.tier] - order[b.tier] || a.name.localeCompare(b.name));
   $('#vtbl').innerHTML = `<tr><th>Vendor</th><th>Tier</th><th>Status</th><th class="n">Products</th><th>Ships to ${esc(W.settings.state)}</th><th class="n">Reliability</th><th>Drops</th><th>Shipping</th><th>Codes &amp; sales</th><th class="n">Reddit</th><th class="n">Sentiment</th><th>What people say</th></tr>` +
     vs.map((v) => {
@@ -664,6 +694,7 @@ function renderVendors() {
       const th = r?.top?.length ? `<ul class="threads">${r.top.map((t) => `<li><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.title || 'comment')}</a> · r/${esc(t.sub)}</li>`).join('')}</ul>` : '';
       const sayCell = says || th ? `<details><summary>${says ? 'Quotes' : ''}${says && th ? ' & ' : ''}${th ? `${r.top.length} threads` : ''}</summary>${says}${th}</details>` : '—';
       const ss = shipStatus(v.id);
+      if (v.local) return `<tr><td><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.name)}</a><br><span class="note">${esc(v.place || '')}</span></td><td><span class="pill t-L">Local</span></td><td>${st}${v.status !== 'ok' ? '<br><span class="note">Recapture with the bookmark on the Dutchie menu</span>' : ''}</td><td class="n">${v.count || 0}</td><td><span class="st-ok">In store</span></td><td class="n">${v.reliability ? v.reliability.score : '<span class="note">Collecting</span>'}</td><td>${v.dropDay ? v.dropDay.day.slice(0, 3) : '—'}</td><td>Pickup</td><td>${v.discount ? `${v.discount.pct}% ${esc(v.discount.label)}` : '—'}</td><td class="n">—</td><td class="n">—</td><td>—</td></tr>`;
       const shipMe = `<span class="${ss === 'yes' ? 'st-ok' : ss === 'unknown' ? 'note' : 'st-error'}">${{ yes: 'Yes', no: 'No', 'policy-no': 'No (policy)', unknown: 'Unconfirmed' }[ss]}</span><br><button class="linkbtn" data-vship="${v.id}" data-val="1" aria-pressed="${W.settings.vendorShip[v.id] === true}">✓</button> <button class="linkbtn" data-vship="${v.id}" data-val="0" aria-pressed="${W.settings.vendorShip[v.id] === false}">✗</button>`;
       const rl = v.reliability;
       const relCell = rl ? `<span title="${rl.inStock}% in stock over ${rl.days} days · ${rl.priceChanges} price changes per product${rl.avgDaysOut != null ? ` · sold-outs last ~${rl.avgDaysOut} days` : ''}">${rl.score}</span>` : '<span class="note">Collecting</span>';
@@ -672,7 +703,7 @@ function renderVendors() {
     }).join('');
 }
 function stats() {
-  const live = D.items.filter((i) => i.available && i.tier !== 'B');
+  const live = D.items.filter((i) => i.available && !i.local && i.tier !== 'B');
   const deals = D.items.filter((i) => i.available && (i.tier === 'B' ? i.bDeal : i.dealRatio >= 1.25)).length;
   const drops = D.items.filter((i) => i.available && (i.drop || i.restocked || i.isNew)).length;
   const rmed = D.medians['rosin:small'] ?? D.medians['rosin:mid'];
@@ -693,6 +724,27 @@ function wire() {
   const tog = (id, key) => $(id).onclick = (e) => { S[key] = !S[key]; e.currentTarget.setAttribute('aria-pressed', S[key]); S.limit = 60; render(); };
   tog('#instock', 'instock'); tog('#hmonly', 'hm'); tog('#sized', 'sized'); tog('#starred', 'starred'); tog('#moved', 'moved');
   tog('#shipsMe', 'shipsMe');
+  // Online / Ayr / Everything, plus mood (effects) and strain type from the dispensary menu
+  const loc = D.vendors.find((v) => v.local);
+  if (!loc) $('#scope').closest('.row').hidden = true;
+  else $('#scope [data-s="local"]').textContent = loc.name;
+  const setScope = (s) => {
+    S.scope = s; S.limit = 60;
+    document.querySelectorAll('#scope button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.s === s));
+    $('#moodrow').hidden = s === 'online';
+    $('#scopeNote').textContent = s === 'online' ? '' : loc ? `${loc.place || ''}${loc.discount ? ` · prices include your ${loc.discount.pct}% ${loc.discount.label}` : ''} · menu ${ago(loc.scrapedAt)}` : '';
+    save(); render();
+  };
+  document.querySelectorAll('#scope button').forEach((b) => (b.onclick = () => setScope(b.dataset.s)));
+  const moodCount = {};
+  for (const i of D.items) if (i.local) for (const e of i.effects || []) moodCount[e] = (moodCount[e] || 0) + 1;
+  for (const [m] of Object.entries(moodCount).sort((a, b) => b[1] - a[1]).slice(0, 10)) {
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = m; b.setAttribute('aria-pressed', 'false');
+    b.onclick = () => { S.moods.has(m) ? S.moods.delete(m) : S.moods.add(m); b.setAttribute('aria-pressed', S.moods.has(m)); S.limit = 60; render(); };
+    $('#moods').append(b);
+  }
+  document.querySelectorAll('#strainSeg button').forEach((b) => (b.onclick = () => { S.strain = b.dataset.t; document.querySelectorAll('#strainSeg button').forEach((x) => x.setAttribute('aria-pressed', x === b)); render(); }));
+  if (loc) setScope(S.scope); else S.scope = 'online';
   const ms = $('#myState');
   for (const [ab, name] of Object.entries(STATE_NAMES)) ms.add(new Option(name, ab));
   ms.onchange = () => { W.settings.state = ms.value; syncState(); changed(); renderVendors(); };
@@ -700,8 +752,8 @@ function wire() {
   $('#codes').setAttribute('aria-pressed', S.codes);
   $('#codes').onclick = (e) => { S.codes = !S.codes; e.currentTarget.setAttribute('aria-pressed', S.codes); save(); render(); if ($('#cartOut').innerHTML) renderCart(); };
   const cv = $('#cartVendor');
-  const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5 };
-  for (const v of [...D.vendors].filter((v) => v.count).sort((a, b) => order[a.tier] - order[b.tier] || a.name.localeCompare(b.name))) cv.add(new Option(`${v.name} (${v.tier})`, v.id));
+  const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5, L: 6 };
+  for (const v of [...D.vendors].filter((v) => v.count && !v.local).sort((a, b) => order[a.tier] - order[b.tier] || a.name.localeCompare(b.name))) cv.add(new Option(`${v.name} (${v.tier})`, v.id));
   $('#cartGo').onclick = renderCart;
   $('#cmpOpen').onclick = openCompare;
   $('#cmpClose').onclick = () => $('#cmpDlg').close();
