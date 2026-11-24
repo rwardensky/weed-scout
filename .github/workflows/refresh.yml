@@ -2,8 +2,13 @@ name: Refresh Weed Scout
 
 on:
   schedule:
-    - cron: "0 11 * * *" # every day, 6am US Eastern (11:00 UTC)
+    # Off the hour: GitHub often skips schedules set exactly on the hour.
+    - cron: "37 10 * * *" # ~5:37am US Eastern
+    - cron: "37 22 * * *" # ~5:37pm US Eastern (backup if the morning run is skipped)
   workflow_dispatch: # "Run workflow" button on the Actions tab
+  push: # run right away when this schedule file changes
+    branches: [main]
+    paths: [.github/workflows/refresh.yml]
 
 permissions:
   contents: write
