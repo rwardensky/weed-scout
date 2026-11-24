@@ -102,6 +102,16 @@ main { padding-block: 18px 40px; display: flex; flex-direction: column; gap: 28p
 .alt a { color: var(--fg) } .alt span { font-family: var(--mono); white-space: nowrap }
 .watchbtn { margin-top: 8px; font: 500 13px var(--body); padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer }
 .watchbtn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent) }
+.codeline { color: var(--good) !important }
+.addon { background: var(--accent-soft); color: var(--fg); padding: 6px 8px; border-radius: 6px; margin-top: 8px }
+.addon a { color: var(--accent) }
+.mynote { width: 100%; font: 13px var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; resize: vertical }
+input[type=number] { width: 90px; font: 14px var(--mono); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px }
+#cartOut { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px }
+#cartOut > p { grid-column: 1 / -1; margin: 0 }
+.cart { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; display: flex; flex-direction: column; gap: 6px }
+.carthead { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px }
+.carthead b { font-family: var(--mono) }
 .empty { padding: 40px 16px; text-align: center; color: var(--muted) }
 h2 { font: 600 19px var(--display); margin: 0 0 4px }
 .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface) }
@@ -150,6 +160,7 @@ details summary { cursor: pointer; color: var(--accent) }
         <button data-v="deal" aria-pressed="false">Best deal</button>
         <button data-v="quality" aria-pressed="false">Best rated</button>
         <button data-v="ppg" aria-pressed="false">Lowest $/g</button>
+        <button data-v="thc" aria-pressed="false">Most THCa per $</button>
         <button data-v="moves" aria-pressed="false">Newest changes</button>
       </div>
       <input type="search" id="q" placeholder="Search strain, vendor, hashmaker">
@@ -168,6 +179,7 @@ details summary { cursor: pointer; color: var(--accent) }
       <span class="lbl">Show</span>
       <button class="chip" id="starred" aria-pressed="false">★ My list</button>
       <button class="chip" id="moved" aria-pressed="false">Drops, restocks &amp; new</button>
+      <button class="chip" id="codes" aria-pressed="true" title="Use each store's public promo code or sitewide sale in prices and ranking">Apply promo codes</button>
       <button class="chip" id="instock" aria-pressed="true">In stock only</button>
       <button class="chip" id="hmonly" aria-pressed="false">Third-party hashmakers</button>
       <button class="chip" id="sized" aria-pressed="true">Has a $/g</button>
@@ -181,6 +193,18 @@ details summary { cursor: pointer; color: var(--accent) }
     <p class="note" id="count"></p>
     <div class="list" id="list"><div class="empty">Loading products…</div></div>
   </section>
+  <section id="cartsec">
+    <h2>Cart builder</h2>
+    <p class="note">Pick a store and a budget. It finds the 1–4 products with the best value for the whole order: low price per gram after the free-shipping line and any promo code, weighed against quality.</p>
+    <div class="row" style="margin-top:8px">
+      <select id="cartVendor" aria-label="Store"></select>
+      <select id="cartCat" aria-label="Product type"><option value="rosin">Rosin &amp; hash</option><option value="flower">Flower</option><option value="concentrate">Other concentrates</option><option value="vape">Vapes</option><option value="preroll">Pre-rolls</option></select>
+      <label class="note" for="cartBudget">Budget $</label><input id="cartBudget" type="number" min="20" step="5" value="150" inputmode="numeric">
+      <button class="chip" id="cartMine" aria-pressed="false">Only my list</button>
+      <button class="more" id="cartGo">Build cart</button>
+    </div>
+    <div id="cartOut"></div>
+  </section>
   <section>
     <h2>Vendor coverage</h2>
     <p class="note">What the last refresh pulled from each site, with shipping terms and promo codes read from the store's own pages. White Ash Reserve and Crysp update when you run the <a href="capture.html">capture bookmark</a> on their sites. Reddit counts are posts and comments from the last 12 months in cannabis subreddits.</p>
@@ -193,6 +217,9 @@ details summary { cursor: pointer; color: var(--accent) }
       <b>Deal</b>: that shipped $/g against the median shipped $/g of in-stock S/A products of the same type and size band (≤1g, up to 3.5g, larger; flower bands are eighth, up to half ounce, ounce and up). +30% means 30% cheaper than typical.
       <b>Quality (0–100)</b>: vendor tier (S 40, A+ 36, A 32, B 20), +12 for a known hashmaker (710, Bryantist, HRC, Stayfly…) or +6 for another third-party brand, up to +20 from site star ratings (weighted toward 4.3 when there are few reviews), ±10 from vendor Reddit sentiment (weighted toward upvoted, recent posts; "not fire" counts as negative), and up to ±8 when the strain itself is discussed.
       <b>Overall</b>: quality × √deal, so a great jar at a fair price beats a mediocre jar at a steep discount.
+      <b>Promo codes</b>: when a store's homepage advertises a code or sitewide sale with a percent off (not first-order-only), "Apply promo codes" takes it off the price before shipping. Codes are read automatically and can expire, so check at checkout.
+      <b>Your ratings</b>: 👍 adds 15 to that product's quality and 👎 takes off 30; your average thumbs per store nudge all its products by up to ±6. These only change your view.
+      <b>THCa</b>: the percentage the store lists in its title or description (not read from lab PDFs). "Most THCa per $" ranks by milligrams of THCa per dollar.
       <b>Changes</b>: prices are recorded every refresh. "↓" marks a drop in the last 3 days, "30-day low" the cheapest it has been in a month.
     </p>
   </section>
@@ -200,11 +227,11 @@ details summary { cursor: pointer; color: var(--accent) }
 
 <script>
 const CATS = { rosin: 'Rosin & hash', flower: 'Flower', concentrate: 'Other concentrates', vape: 'Vapes', preroll: 'Pre-rolls' };
-const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, limit: 60, open: new Set() };
+const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, codes: true, limit: 60, open: new Set() };
 let D = null, V = {}, G = {};
 const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
-{ const saved = ls.get('scout', null); if (saved) { S.sort = saved.sort || S.sort; if (saved.cats) S.cats = new Set(saved.cats); } }
-const save = () => ls.set('scout', { sort: S.sort, cats: [...S.cats] });
+{ const saved = ls.get('scout', null); if (saved) { S.sort = saved.sort || S.sort; if (saved.cats) S.cats = new Set(saved.cats); if (saved.codes === false) S.codes = false; } }
+const save = () => ls.set('scout', { sort: S.sort, cats: [...S.cats], codes: S.codes });
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = (n) => n == null ? '—' : '$' + (n >= 100 ? Math.round(n) : n.toFixed(2));
@@ -226,10 +253,29 @@ const moveDate = (i) => [i.drop?.at, i.restocked, i.isNew].filter(Boolean).sort(
 // ---------- watchlist: stars on products and strains, synced to watchlist.json when this browser has the capture token ----------
 const REPO = 'rwardensky/weed-scout';
 const token = () => { try { return localStorage.getItem('ws-token') || ''; } catch { return ''; } };
-let W = ls.get('ws-watch', { items: [], strains: [], updatedAt: 0 });
-W.items = new Set(W.items); W.strains = new Set(W.strains);
+let W = ls.get('ws-watch', { items: [], strains: [], ratings: {}, updatedAt: 0 });
+W.items = new Set(W.items); W.strains = new Set(W.strains); W.ratings ||= {};
 let remoteSha = null, saveTimer = null;
-const plainW = () => ({ items: [...W.items].sort(), strains: [...W.strains].sort(), updatedAt: W.updatedAt });
+const plainW = () => ({ items: [...W.items].sort(), strains: [...W.strains].sort(), ratings: W.ratings, updatedAt: W.updatedAt });
+
+// ---------- personal view: promo codes and your ratings change prices and scores on this page ----------
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const pp = (i) => (S.codes && i.codePpg) || i.effPpg;            // $/g you'd pay
+const dr = (i) => (S.codes && i.dealRatioCode) || i.dealRatio;    // deal vs median
+let VA = {};                                                       // your average rating per vendor, -1..1
+function vendorAffinity() {
+  const acc = {};
+  for (const [id, r] of Object.entries(W.ratings)) { if (!r.r) continue; const v = id.split(':')[0]; (acc[v] ||= []).push(r.r); }
+  VA = Object.fromEntries(Object.entries(acc).map(([v, a]) => [v, a.reduce((s, x) => s + x, 0) / a.length]));
+}
+function myQ(i) {
+  let q = i.quality;
+  const r = W.ratings[i.id]?.r; if (r) q += r > 0 ? 15 : -30;
+  if (VA[i.vendorId]) q += VA[i.vendorId] * 6;
+  return Math.round(clamp(q, 0, 100));
+}
+const myV = (i) => { const d = dr(i); return d ? Math.round(myQ(i) * Math.sqrt(clamp(d, 0.5, 2))) : null; };
+const mgPer$ = (i) => (i.thca && pp(i) ? Math.round((i.thca * 10) / pp(i)) : null);
 async function loadRemoteWatch() {
   try {
     const r = await fetch(`https://api.github.com/repos/${REPO}/contents/watchlist.json?ref=main&t=${Date.now()}`, { headers: token() ? { Authorization: 'Bearer ' + token() } : {} });
@@ -237,7 +283,7 @@ async function loadRemoteWatch() {
     if (!r.ok) return;
     const j = await r.json(); remoteSha = j.sha;
     const remote = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g, '')))));
-    if ((remote.updatedAt || 0) >= (W.updatedAt || 0)) { W = { items: new Set(remote.items || []), strains: new Set(remote.strains || []), updatedAt: remote.updatedAt || 0 }; ls.set('ws-watch', plainW()); if (D) render(); }
+    if ((remote.updatedAt || 0) >= (W.updatedAt || 0)) { W = { items: new Set(remote.items || []), strains: new Set(remote.strains || []), ratings: remote.ratings || {}, updatedAt: remote.updatedAt || 0 }; ls.set('ws-watch', plainW()); vendorAffinity(); if (D) render(); }
     else if (token()) queueSave();
   } catch {}
 }
@@ -257,8 +303,16 @@ function toggleWatch(kind, key) {
   const set = W[kind]; set.has(key) ? set.delete(key) : set.add(key);
   W.updatedAt = Date.now(); ls.set('ws-watch', plainW()); queueSave(); render(); syncNote();
 }
+function setRating(id, r, note) {
+  const cur = W.ratings[id];
+  if (r === undefined) r = cur?.r;                       // note-only edit
+  else if (cur?.r === r) r = 0;                          // tapping the same thumb clears it
+  if (!r && !(note ?? cur?.note)) delete W.ratings[id];
+  else W.ratings[id] = { r: r || 0, note: (note ?? cur?.note ?? '').slice(0, 300), t: new Date().toISOString().slice(0, 10) };
+  W.updatedAt = Date.now(); ls.set('ws-watch', plainW()); vendorAffinity(); queueSave(); render(); syncNote();
+}
 function syncNote(err) {
-  const n = W.items.size + W.strains.size;
+  const n = W.items.size + W.strains.size + Object.keys(W.ratings).length;
   const el = $('#syncnote');
   if (err) { el.innerHTML = `<div class="banner">${esc(err)}</div>`; return; }
   el.innerHTML = n && !token() ? `<div class="banner">Your ★ list is saved on this device only. Connect GitHub on the <a href="capture.html">capture page</a> to sync it across devices and get phone alerts for it.</div>` : '';
@@ -268,28 +322,29 @@ function visible() {
   const q = S.q.toLowerCase();
   return D.items.filter((i) => {
     const t = i.tier === 'A+' ? 'A' : i.tier;
-    if (S.starred) return W.items.has(i.id) || (i.group && W.strains.has(i.group)) ? (!q || i.title.toLowerCase().includes(q)) : false;
+    if (S.starred) return W.items.has(i.id) || (i.group && W.strains.has(i.group)) || W.ratings[i.id] ? (!q || i.title.toLowerCase().includes(q)) : false;
     if (i.pinned) { if (!S.tiers.has('P')) return false; }
     else {
       if (!S.tiers.has(t)) return false;
-      if (t === 'B' && !i.bDeal) return false;
+      if (t === 'B' && !(i.bDeal || (S.codes && i.bDealCode))) return false;
     }
     if (!S.cats.has(i.category)) return false;
     if (S.vendor && i.vendorId !== S.vendor) return false;
     if (S.instock && !i.available) return false;
     if (S.hm && !(i.hashmaker || i.thirdParty)) return false;
-    if (S.sized && !i.effPpg) return false;
+    if (S.sized && !pp(i)) return false;
     if (S.moved && !moved(i)) return false;
     if (q && !`${i.title} ${V[i.vendorId]?.name} ${i.hashmaker || ''} ${i.thirdParty || ''}`.toLowerCase().includes(q)) return false;
     return true;
   });
 }
 const sorters = {
-  value: (a, b) => (b.value ?? b.quality * 0.7) - (a.value ?? a.quality * 0.7),
-  deal: (a, b) => (b.dealRatio ?? 0) - (a.dealRatio ?? 0),
-  quality: (a, b) => b.quality - a.quality || (b.dealRatio ?? 0) - (a.dealRatio ?? 0),
-  ppg: (a, b) => (a.effPpg ?? 1e9) - (b.effPpg ?? 1e9),
-  moves: (a, b) => moveDate(b).localeCompare(moveDate(a)) || (b.drop?.pct ?? 0) - (a.drop?.pct ?? 0) || (b.value ?? 0) - (a.value ?? 0),
+  value: (a, b) => (myV(b) ?? myQ(b) * 0.7) - (myV(a) ?? myQ(a) * 0.7),
+  deal: (a, b) => (dr(b) ?? 0) - (dr(a) ?? 0),
+  quality: (a, b) => myQ(b) - myQ(a) || (dr(b) ?? 0) - (dr(a) ?? 0),
+  ppg: (a, b) => (pp(a) ?? 1e9) - (pp(b) ?? 1e9),
+  thc: (a, b) => (mgPer$(b) ?? -1) - (mgPer$(a) ?? -1) || (myV(b) ?? 0) - (myV(a) ?? 0),
+  moves: (a, b) => moveDate(b).localeCompare(moveDate(a)) || (b.drop?.pct ?? 0) - (a.drop?.pct ?? 0) || (myV(b) ?? 0) - (myV(a) ?? 0),
 };
 function dealBadge(r) {
   if (r == null) return '<span class="deal even">no $/g</span>';
@@ -309,7 +364,9 @@ function priceCell(i) {
   if (!i.effPpg) return `<div class="num">${money(i.minPrice)}<small>from, no weight listed</small></div>`;
   const ship = i.shipPpg ? (i.shipFree ? 'free shipping' : `with ${i.shipEstimated ? 'est. ' : ''}shipping`) : 'before shipping';
   const size = i.effGrams ? `${i.effGrams}g${i.weightAssumed ? ' (assumed)' : ''}` : '';
-  return `<div class="num" title="Sticker ${money(i.bestPpg)}/g">${money(i.effPpg)}/g<small>${size}${size ? ' · ' : ''}${ship}</small></div>`;
+  const coded = S.codes && i.codePpg;
+  const code = coded ? `<small class="codeline">${i.code ? `code <code class="promo">${esc(i.code)}</code>` : 'sale'} −${i.codePct}%, was ${money(i.effPpg)}</small>` : '';
+  return `<div class="num" title="Sticker ${money(i.bestPpg)}/g">${money(pp(i))}/g<small>${size}${size ? ' · ' : ''}${ship}</small>${code}</div>`;
 }
 function others(i) {
   if (!i.group) return [];
@@ -340,8 +397,17 @@ function detailsHtml(i) {
   const alts = others(i).sort((a, b) => (a.effPpg ?? 1e9) - (b.effPpg ?? 1e9)).slice(0, 8);
   const ship = v.shipping?.freeOver ? `Free shipping over $${v.shipping.freeOver}${v.shipping.cost ? `, else $${v.shipping.cost}` : ''}.` : 'Shipping terms not published; estimated.';
   const promos = (v.promos || []).map((p) => p.code ? `<code class="promo">${esc(p.code)}</code> ${esc(p.text.replace(new RegExp(`code\\s*[:=]?\\s*${p.code}`, 'i'), '').trim())}` : esc(p.text)).join('<br>');
+  const my = W.ratings[i.id] || {};
+  const addon = addOnHint(i);
   return `<div class="details" id="d-${esc(i.id)}">
-    <div><h3>Sizes</h3><table>${sizes}</table><p class="note" style="margin:6px 0 0">${esc(v.name)}: ${ship}${promos ? `<br>${promos}` : ''}</p></div>
+    <div><h3>Sizes</h3><table>${sizes}</table><p class="note" style="margin:6px 0 0">${esc(v.name)}: ${ship}${promos ? `<br>${promos}` : ''}</p>
+      ${addon ? `<p class="note addon">${addon}</p>` : ''}
+      ${i.thca ? `<p class="note">${i.thca}% THCa as listed by the store · ${mgPer$(i) ?? '—'} mg THCa per dollar</p>` : ''}</div>
+    <div><h3>Your rating</h3>
+      <div class="row"><button class="watchbtn" data-rate="1" data-id="${esc(i.id)}" aria-pressed="${my.r > 0}">👍 Liked it</button><button class="watchbtn" data-rate="-1" data-id="${esc(i.id)}" aria-pressed="${my.r < 0}">👎 Not for me</button></div>
+      <label class="note" for="n-${esc(i.id)}" style="display:block;margin-top:8px">Notes</label>
+      <textarea class="mynote" id="n-${esc(i.id)}" data-note="${esc(i.id)}" rows="2" maxlength="300" placeholder="Taste, effect, would you rebuy?">${esc(my.note || '')}</textarea>
+      <p class="note">Your thumbs move this product ±, and nudge everything from ${esc(v.name)}${VA[i.vendorId] ? ` (you're ${VA[i.vendorId] > 0 ? 'positive' : 'negative'} on them so far)` : ''}.</p></div>
     <div><h3>Price history</h3>${hist || `<p class="note">Tracking since ${i.firstSeen ? shortDate(i.firstSeen) : 'today'}; no change yet.</p>`}</div>
     <div><h3>Same strain elsewhere</h3>${alts.length ? alts.map((a) => `<div class="alt"><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(V[a.vendorId]?.name || a.vendorId)} <span class="pill ${tierCls(a.tier)}">${esc(a.tier)}</span></a><span>${a.effPpg ? money(a.effPpg) + '/g' : money(a.minPrice)}</span></div>`).join('') : '<p class="note">Not listed at other tracked vendors right now.</p>'}
       ${i.group ? `<button class="watchbtn" data-strain="${esc(i.group)}" aria-pressed="${W.strains.has(i.group)}">${W.strains.has(i.group) ? '★ Watching this strain' : '☆ Watch this strain'}</button>` : ''}</div>
@@ -369,21 +435,101 @@ function render() {
         <div class="meta"><span class="pill ${tierCls(i.tier)}">${esc(i.tier)}</span>${esc(v.name || i.vendorId)} · ${CATS[i.category]}
           ${maker ? `<span class="tag ${i.hashmaker ? 'hm' : ''}">${esc(maker)}</span>` : ''}
           ${i.onSale ? '<span class="tag sale">On sale</span>' : ''}${!i.available ? '<span class="tag oos">Sold out</span>' : ''}
-          ${i.stale ? '<span class="tag oos">Cached</span>' : ''}${moveTags(i)}${rating ? `<span>${rating}</span>` : ''}${rd}
+          ${i.stale ? '<span class="tag oos">Cached</span>' : ''}${moveTags(i)}${i.thca ? `<span class="tag" title="${mgPer$(i) ? `${mgPer$(i)} mg THCa per dollar` : ''}">${i.thca}% THCa</span>` : ''}${W.ratings[i.id]?.r ? `<span class="tag ${W.ratings[i.id].r > 0 ? 'move' : 'sale'}">${W.ratings[i.id].r > 0 ? '👍 You liked' : '👎 Not for you'}</span>` : ''}${rating ? `<span>${rating}</span>` : ''}${rd}
           <button class="linkbtn" data-open="${esc(i.id)}" aria-expanded="${open}">${alts.length ? `Also at ${new Set(alts.map((a) => a.vendorId)).size} vendor${new Set(alts.map((a) => a.vendorId)).size > 1 ? 's' : ''}${cheaper ? `, ${cheaper} cheaper` : ''}` : 'Details'}</button></div>
       </div>
       ${priceCell(i)}
-      <div class="num dcell">${dealBadge(i.dealRatio)}</div>
-      <div class="q"><span class="num">${i.quality}</span><div class="meter"><i style="width:${i.quality}%"></i></div></div>
+      <div class="num dcell">${dealBadge(dr(i))}</div>
+      <div class="q"><span class="num">${myQ(i)}</span><div class="meter"><i style="width:${myQ(i)}%"></i></div></div>
     </div>${open ? detailsHtml(i) : ''}</div>`;
   }).join('') + (rows.length > S.limit ? `<div style="display:flex;padding:12px"><button class="more" id="more">Show 60 more</button></div>` : '');
   $('#more')?.addEventListener('click', () => { S.limit += 60; render(); });
 }
+$('#list').addEventListener('change', (e) => { const n = e.target.closest('[data-note]'); if (n) setRating(n.dataset.note, undefined, n.value.trim()); });
 $('#list').addEventListener('click', (e) => {
+  const rt = e.target.closest('[data-rate]'); if (rt) return setRating(rt.dataset.id, +rt.dataset.rate);
   const st = e.target.closest('[data-star]'); if (st) return toggleWatch('items', st.dataset.star);
   const ws = e.target.closest('[data-strain]'); if (ws) return toggleWatch('strains', ws.dataset.strain);
   const op = e.target.closest('[data-open]'); if (op) { const id = op.dataset.open; S.open.has(id) ? S.open.delete(id) : S.open.add(id); render(); }
 });
+// ---------- shipping, codes and carts ----------
+function shipFor(vid) {
+  const sh = V[vid]?.shipping || {};
+  return sh.freeOver != null || sh.cost != null ? { cost: sh.cost ?? 10, freeOver: sh.freeOver ?? null, est: sh.cost == null } : { cost: 10, freeOver: 100, est: true };
+}
+function promoFor(vid) {
+  if (!S.codes) return null;
+  return (V[vid]?.promos || []).filter((p) => p.pct && !p.firstOrder).sort((a, b) => b.pct - a.pct)[0] || null;
+}
+function orderTotal(vid, lines) {
+  const sub = lines.reduce((s, l) => s + l.price, 0);
+  const promo = promoFor(vid), disc = promo ? sub * promo.pct / 100 : 0, after = sub - disc;
+  const sh = shipFor(vid), ship = sh.freeOver != null && after >= sh.freeOver ? 0 : sh.cost;
+  return { sub, disc, ship, total: after + ship, grams: lines.reduce((s, l) => s + l.grams, 0), promo, sh };
+}
+const variantsOf = (i) => i.variants.filter((x) => x.available && x.grams && x.price > 0).map((x) => ({ item: i, label: x.label, price: x.price, grams: x.grams }));
+// "Add X to reach free shipping": only shown when it lowers the per-gram cost of the whole order
+function addOnHint(i) {
+  if (!i.available || !i.effGrams) return '';
+  const sh = shipFor(i.vendorId); if (sh.freeOver == null) return '';
+  const mine = variantsOf(i).find((x) => x.label === i.shipLabel) || variantsOf(i).sort((a, b) => a.price / a.grams - b.price / b.grams)[0];
+  if (!mine) return '';
+  const alone = orderTotal(i.vendorId, [mine]);
+  if (!alone.ship) return '';
+  let best = null;
+  for (const o of D.items) {
+    if (o.vendorId !== i.vendorId || o.id === i.id || o.category !== i.category || !o.available || W.ratings[o.id]?.r < 0) continue;
+    for (const x of variantsOf(o)) {
+      const t = orderTotal(i.vendorId, [mine, x]);
+      if (t.ship) continue;
+      // cheapest add-on that clears the line; among equal totals, the better per-gram one
+      const ppgBoth = t.total / t.grams;
+      if (!best || t.total < best.t.total || (t.total === best.t.total && ppgBoth < best.ppgBoth)) best = { x, t, ppgBoth };
+    }
+  }
+  if (!best || best.ppgBoth >= alone.total / alone.grams) return '';
+  return `💡 Add <a href="${esc(best.x.item.url)}" target="_blank" rel="noopener">${esc(best.x.item.title)}</a> (${best.x.grams}g, ${money(best.x.price)}) to clear the $${sh.freeOver} free-shipping line: ${money(best.ppgBoth)}/g across both, vs ${money(alone.total / alone.grams)}/g for this alone.`;
+}
+function buildCarts(vid, budget, onlyMine, cat) {
+  let cands = [];
+  for (const i of D.items) {
+    if (i.vendorId !== vid || !i.available || W.ratings[i.id]?.r < 0 || i.category !== cat) continue;
+    if (onlyMine && !(W.items.has(i.id) || (i.group && W.strains.has(i.group)) || W.ratings[i.id]?.r > 0)) continue;
+    for (const x of variantsOf(i)) if (x.price <= budget) cands.push({ ...x, score: (x.price / x.grams) / (myQ(i) / 70) });
+  }
+  cands.sort((a, b) => a.score - b.score);
+  const pool3 = cands.slice(0, 40), pool4 = cands.slice(0, 14), res = [];
+  const consider = (lines) => {
+    if (new Set(lines.map((l) => l.item.id)).size < lines.length) return; // one size per product
+    const t = orderTotal(vid, lines); if (t.total > budget) return;
+    const q = lines.reduce((s, l) => s + myQ(l.item) * l.grams, 0) / t.grams; // gram-weighted quality
+    res.push({ lines, ...t, ppg: t.total / t.grams, q, score: (t.total / t.grams) / Math.pow(q / 70, 1.5) });
+  };
+  for (let a = 0; a < pool3.length; a++) {
+    consider([pool3[a]]);
+    for (let b = a + 1; b < pool3.length; b++) {
+      consider([pool3[a], pool3[b]]);
+      for (let c = b + 1; c < pool3.length; c++) consider([pool3[a], pool3[b], pool3[c]]);
+    }
+  }
+  for (let a = 0; a < pool4.length; a++) for (let b = a + 1; b < pool4.length; b++) for (let c = b + 1; c < pool4.length; c++) for (let d = c + 1; d < pool4.length; d++) consider([pool4[a], pool4[b], pool4[c], pool4[d]]);
+  res.sort((x, y) => x.score - y.score);
+  const out = [], seen = new Set();
+  for (const r of res) { const k = r.lines.map((l) => l.item.id).sort().join(); if (seen.has(k)) continue; seen.add(k); out.push(r); if (out.length >= 3) break; }
+  return { carts: out, sh: shipFor(vid), promo: promoFor(vid), n: cands.length };
+}
+function renderCart() {
+  const vid = $('#cartVendor').value, budget = +$('#cartBudget').value || 0, onlyMine = $('#cartMine').getAttribute('aria-pressed') === 'true', cat = $('#cartCat').value;
+  const v = V[vid]; if (!v) return;
+  const { carts, sh, promo, n } = buildCarts(vid, budget, onlyMine, cat);
+  const terms = `${sh.freeOver != null ? `Free shipping at $${sh.freeOver}` : 'No free-shipping line'}${sh.freeOver != null || sh.cost ? `, otherwise $${sh.cost}${sh.est ? ' (estimated)' : ''}` : ''}.${promo ? ` Applying ${promo.code ? `code <code class="promo">${esc(promo.code)}</code>` : 'the sale'} (−${promo.pct}%).` : ''}`;
+  $('#cartOut').innerHTML = `<p class="note">${esc(v.name)}: ${terms} ${esc(CATS[cat])} only${onlyMine ? ', from your list' : ''}; skips anything you thumbed down.</p>` + (carts.length ? carts.map((c, k) => `
+    <div class="cart"><div class="carthead"><b>${k === 0 ? 'Best' : `Option ${k + 1}`}: ${money(c.ppg)}/g</b><span class="note">${c.grams}g for ${money(c.total)} · quality ${Math.round(c.q)}</span></div>
+      ${c.lines.map((l) => `<div class="alt"><a href="${esc(l.item.url)}" target="_blank" rel="noopener">${esc(l.item.title)}</a><span>${l.grams}g · ${money(l.price)}</span></div>`).join('')}
+      <div class="note">Subtotal ${money(c.sub)}${c.disc ? ` − ${money(c.disc)} code` : ''} + ${c.ship ? money(c.ship) + ' shipping' : 'free shipping'} = <b>${money(c.total)}</b></div></div>`).join('')
+    : `<p class="empty">${n ? `Nothing fits under $${budget}. Try a higher budget.` : 'No in-stock products with a weight match these filters at this store.'}</p>`);
+}
+
 function renderVendors() {
   const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5 };
   const vs = [...D.vendors].sort((a, b) => order[a.tier] - order[b.tier] || a.name.localeCompare(b.name));
@@ -420,6 +566,13 @@ function wire() {
   document.querySelectorAll('[data-tier]').forEach((b) => b.onclick = () => { const t = b.dataset.tier; S.tiers.has(t) ? S.tiers.delete(t) : S.tiers.add(t); b.setAttribute('aria-pressed', S.tiers.has(t)); render(); });
   const tog = (id, key) => $(id).onclick = (e) => { S[key] = !S[key]; e.currentTarget.setAttribute('aria-pressed', S[key]); S.limit = 60; render(); };
   tog('#instock', 'instock'); tog('#hmonly', 'hm'); tog('#sized', 'sized'); tog('#starred', 'starred'); tog('#moved', 'moved');
+  $('#codes').setAttribute('aria-pressed', S.codes);
+  $('#codes').onclick = (e) => { S.codes = !S.codes; e.currentTarget.setAttribute('aria-pressed', S.codes); save(); render(); if ($('#cartOut').innerHTML) renderCart(); };
+  const cv = $('#cartVendor');
+  const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5 };
+  for (const v of [...D.vendors].filter((v) => v.count).sort((a, b) => order[a.tier] - order[b.tier] || a.name.localeCompare(b.name))) cv.add(new Option(`${v.name} (${v.tier})`, v.id));
+  $('#cartGo').onclick = renderCart;
+  $('#cartMine').onclick = (e) => { const on = e.currentTarget.getAttribute('aria-pressed') !== 'true'; e.currentTarget.setAttribute('aria-pressed', on); };
   $('#q').oninput = (e) => { S.q = e.target.value; S.limit = 60; render(); };
   $('#filtersBtn').onclick = (e) => { const open = $('.bar').classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', open); e.currentTarget.textContent = open ? 'Done' : 'Filters'; };
   const sel = $('#vendor');
@@ -430,6 +583,7 @@ fetch('data.json', { cache: 'no-cache' }).then((r) => r.json()).then((d) => {
   D = d; V = Object.fromEntries(d.vendors.map((v) => [v.id, v]));
   for (const i of d.items) { i.effPpg ??= i.bestPpg; i.effGrams ??= i.bestPpgGrams; } // data from before shipping-aware prices
   G = {}; for (const i of d.items) if (i.group) (G[i.group] ||= []).push(i);
+  vendorAffinity();
   stats(); wire(); render(); renderVendors(); syncNote();
 }).catch(() => { $('#list').innerHTML = '<div class="empty">Couldn\'t load the product list. Check your connection and reload.</div>'; });
 loadRemoteWatch();

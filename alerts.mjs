@@ -24,7 +24,7 @@ const state = read('alerts-state.json', { sent: {} });
 const today = new Date().toISOString().slice(0, 10);
 const vname = Object.fromEntries(data.vendors.map((v) => [v.id, v.name]));
 const money = (n) => '$' + (n >= 100 ? Math.round(n) : n.toFixed(2));
-const ppg = (i) => (i.effPpg ? `${money(i.effPpg)}/g shipped` : money(i.minPrice));
+const ppg = (i) => (i.effPpg ? `${money(i.effPpg)}/g${i.shipPpg ? ' shipped' : ''}` : i.bestPpg ? `${money(i.bestPpg)}/g` : money(i.minPrice));
 const recent = (d, days = 1) => d && (Date.now() - new Date(d + 'T12:00:00Z')) / 864e5 <= days;
 
 const events = [];
@@ -67,7 +67,7 @@ async function send(e) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: TG_CHAT, parse_mode: 'HTML', disable_web_page_preview: true,
-        text: `${EMOJI[e.tag] || ''} <b>${html(e.title)}</b>\n${html(e.body)}`,
+        text: e.html || `${EMOJI[e.tag] || ''} <b>${html(e.title)}</b>\n${html(e.body)}`,
         reply_markup: { inline_keyboard: [[{ text: e.url && e.url !== SITE ? 'Open product' : 'Open Weed Scout', url: e.url || SITE }]] },
       }),
     });
@@ -86,6 +86,31 @@ if (process.argv.includes('--test')) {
   const ok = await send({ title: 'Weed Scout alerts are on', body: `You'll get price drops, restocks and new listings for your starred products and strains, plus big S/A deals. ${data.items.filter((i) => i.available).length} products tracked right now.`, tag: 'white_check_mark', prio: 3, url: SITE });
   console.log(`alerts: test message ${ok ? 'sent' : 'failed'} via ${TOPIC || 'nothing (no channel set)'}`);
   process.exit(ok && TOPIC ? 0 : 1);
+}
+
+// ---------- weekly digest: Sunday morning run (or --digest) ----------
+const now = new Date();
+const digestDue = process.argv.includes('--digest') || (now.getUTCDay() === 0 && now.getUTCHours() < 16 && state.digest !== today);
+if (digestDue) {
+  const CAT = { rosin: 'Rosin & hash', flower: 'Flower', concentrate: 'Other concentrates', vape: 'Vapes', preroll: 'Pre-rolls' };
+  const short = (s, n = 46) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+  const under = (i) => { const p = i.dealRatio ? Math.round((1 - 1 / i.dealRatio) * 100) : 0; return p >= 5 ? `${p}% under` : ''; };
+  const line = (i) => ({ t: `${short(i.title)} · ${vname[i.vendorId]} · ${ppg(i)} ${under(i) && `(${under(i)})`}`, url: i.url });
+  const live = data.items.filter((i) => i.available && !i.stale && i.value && !i.pinned && (i.tier !== 'B' || i.bDeal));
+  const sections = [];
+  for (const [k, label] of Object.entries(CAT)) {
+    const top = live.filter((i) => i.category === k).sort((a, b) => b.value - a.value).slice(0, 3);
+    if (top.length) sections.push({ h: `Top ${label}`, rows: top.map(line) });
+  }
+  const weekAgo = (d) => d && (Date.now() - new Date(d + 'T12:00:00Z')) / 864e5 <= 7;
+  const fresh = data.items.filter((i) => i.available && i.tier === 'S' && weekAgo(i.firstSeen) && i.firstSeen > (read('history.json', {}).started || '')).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).slice(0, 5);
+  if (fresh.length) sections.push({ h: 'New from S-tier this week', rows: fresh.map(line) });
+  const mine = data.items.filter((i) => items.has(i.id) || (i.group && strains.has(i.group)));
+  const moved = mine.filter((i) => (i.drop && weekAgo(i.drop.at)) || (i.restocked && weekAgo(i.restocked)));
+  if (mine.length) sections.push({ h: `Your list (${mine.length})`, rows: moved.length ? moved.slice(0, 6).map((i) => ({ ...line(i), t: `${i.drop ? `↓${i.drop.pct}% ` : 'Back in stock: '}${line(i).t}` })) : [{ t: `No drops or restocks this week. ${mine.filter((i) => i.available).length} in stock.` }] });
+  const htmlBody = `🗓 <b>Weed Scout weekly</b>\n` + sections.map((s) => `\n<b>${html(s.h)}</b>\n` + s.rows.map((r) => r.url ? `• <a href="${html(r.url)}">${html(r.t)}</a>` : `• ${html(r.t)}`).join('\n')).join('\n');
+  const plain = sections.map((s) => `${s.h}\n` + s.rows.map((r) => `• ${r.t}`).join('\n')).join('\n\n');
+  if (await send({ title: 'Weed Scout weekly', body: plain.slice(0, 3800), html: htmlBody.slice(0, 4000), tag: 'bell', prio: 3, url: SITE })) state.digest = today;
 }
 
 let sent = 0;

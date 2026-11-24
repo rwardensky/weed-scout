@@ -123,7 +123,7 @@ function makeItem(v, p) {
   // vendors that sell fixed-size jars without saying so (e.g. Quantum's 1g singles); flagged as assumed on the site
   const assumedG = !anyLabelWeight && !parseGrams(p.title) && !/pack|sampler|mystery|bundle|\d+\s*ct\b/i.test(p.title) ? v.defaultGrams?.[category] : null;
   const variants = p.variants.map((x) => {
-    let g = parseGrams(x.label) ?? (!anyLabelWeight ? parseGrams(p.title) ?? (p.variants.length === 1 ? parseGrams(p.desc) : null) : null);
+    let g = parseGrams(x.label) ?? (!anyLabelWeight ? parseGrams(p.title) ?? (p.variants.length === 1 ? parseGrams(p.desc?.slice(0, 600)) : null) : null);
     let assumed = false;
     if (!g && assumedG) { g = assumedG; assumed = true; }
     return { label: x.label || 'Default', grams: g, assumed: assumed || undefined, price: x.price, compareAt: x.compareAt > x.price ? x.compareAt : null, available: x.available, ppg: g && x.price ? +(x.price / g).toFixed(2) : null };
@@ -143,7 +143,24 @@ function makeItem(v, p) {
     hashmaker: findHashmaker(`${p.title} ${p.brand || ''} ${(p.tags || []).join(' ')}`),
     thirdParty: isThirdParty(v, p.brand) ? strip(p.brand) : null,
     rating: p.rating ?? null, reviewCount: p.reviewCount ?? null,
+    thca: potency(category, [p.title, p.desc, ...(p.tags || []), ...p.variants.map((x) => x.label)].join(' | ')),
   };
+}
+// THCa (or total THC) % as stated in the listing. Not read from COA PDFs; only what the store writes.
+function potency(category, text) {
+  if (!text) return null;
+  const pats = [
+    /\b(?:thc-?a|thca-?a?|total thc-?a)\b[^\d%|]{0,18}(\d{1,2}(?:\.\d{1,2})?)\s*%/i,
+    /(\d{1,2}(?:\.\d{1,2})?)\s*%\s*(?:thc-?a)\b/i,
+    /\b(?:total (?:potential )?thc|total cannabinoids|potency)\b[^\d%|]{0,18}(\d{1,2}(?:\.\d{1,2})?)\s*%/i,
+    /(\d{1,2}(?:\.\d{1,2})?)\s*%\s*(?:total )?thc\b/i,
+  ];
+  const [lo, hi] = category === 'flower' || category === 'preroll' ? [8, 45] : [35, 99.9];
+  for (const re of pats) {
+    const m = text.match(re); const n = m && parseFloat(m[1]);
+    if (n >= lo && n <= hi) return n;
+  }
+  return null;
 }
 
 // ---------- platform scrapers ----------
@@ -155,7 +172,7 @@ async function shopify(v) {
     for (const p of r.body.products) {
       out.push({
         handle: p.handle, title: p.title, type: p.product_type, tags: Array.isArray(p.tags) ? p.tags : String(p.tags || '').split(','),
-        brand: p.vendor, desc: strip(p.body_html).slice(0, 600), url: `${v.url}/products/${p.handle}`, image: p.images?.[0]?.src,
+        brand: p.vendor, desc: strip(p.body_html).slice(0, 1500), url: `${v.url}/products/${p.handle}`, image: p.images?.[0]?.src,
         variants: p.variants.map((x) => ({ label: x.title === 'Default Title' ? '' : x.title, price: +x.price, compareAt: +x.compare_at_price || null, available: !!x.available })),
       });
     }
@@ -197,7 +214,7 @@ async function woo(v) {
       variants = [{ label: '', price: money(p.prices, 'price'), compareAt: money(p.prices, 'regular_price'), available: p.is_in_stock }];
     }
     return {
-      handle: p.slug, title: strip(p.name), desc: strip(p.short_description || p.description).slice(0, 600), type: '', tags: (p.tags || []).map((t) => t.name), cats: (p.categories || []).map((c) => c.name),
+      handle: p.slug, title: strip(p.name), desc: strip(p.short_description || p.description).slice(0, 1500), type: '', tags: (p.tags || []).map((t) => t.name), cats: (p.categories || []).map((c) => c.name),
       url: p.permalink, image: p.images?.[0]?.thumbnail || p.images?.[0]?.src, variants,
       rating: +p.average_rating || null, reviewCount: p.review_count || null,
     };
@@ -260,7 +277,7 @@ async function jsonld(v) {
       const im0 = Array.isArray(p.image) ? p.image[0] : p.image;
       const img = typeof im0 === 'string' ? im0 : im0?.url || im0?.contentUrl || im0?.thumbnailUrl || null;
       out.push({
-        handle: u.split('/').filter(Boolean).pop(), title: p.name, desc: strip(p.description).slice(0, 600), type: p.category || '', tags: [], cats: [], brand: p.brand?.name || p.brand,
+        handle: u.split('/').filter(Boolean).pop(), title: p.name, desc: strip(p.description).slice(0, 1500), type: p.category || '', tags: [], cats: [], brand: p.brand?.name || p.brand,
         url: u, image: typeof img === 'string' ? img : null, variants,
         rating: +p.aggregateRating?.ratingValue || null, reviewCount: +(p.aggregateRating?.reviewCount || p.aggregateRating?.ratingCount) || null,
       });
@@ -286,11 +303,25 @@ function findPromos(t) {
   for (const m of t.matchAll(/([^.!|]{0,60}?)\b(?:[Uu]se |[Pp]romo |[Cc]oupon |[Dd]iscount )?[Cc](?:ode|ODE)\s*(?:[:=]\s*|\s)["“']?([A-Z][A-Z0-9]{3,19})\b([^.!|]{0,50})/g)) {
     const code = m[2];
     if (/^(CODE|SHOP|HERE|BELOW|NOW|APPLY|FREE)$/.test(code) || out.some((x) => x.code === code)) continue;
-    out.push({ code, text: strip(`${m[1]} code ${code}${m[3]}`).replace(/\s+/g, ' ').trim().slice(0, 120) });
+    const text = strip(`${m[1]} code ${code}${m[3]}`).replace(/\s+/g, ' ').trim().slice(0, 120);
+    // percent off near the code ("30% off ... use code X" or "code X for 20% off")
+    const near = t.slice(Math.max(0, m.index - 120), m.index + m[0].length + 60);
+    const pct = +(text.match(/(\d{1,2})\s?% off/i)?.[1] || near.match(/(\d{1,2})\s?% off/i)?.[1] || 0) || null;
+    const firstOrder = /first|new (?:customer|shopper)|welcome|sign ?up|subscribe/i.test(text);
+    out.push({ code, text, pct: pct && pct <= 60 ? pct : null, firstOrder: firstOrder || undefined });
   }
-  const sale = t.match(/[^.!|]{0,40}\b\d{1,2}% off (?:everything|sitewide|all|storewide)[^.!|]{0,30}/i);
-  if (sale && !out.length) out.push({ code: null, text: sale[0].trim().slice(0, 120) });
+  const sale = t.match(/[^.!|]{0,40}\b(\d{1,2})% off (?:everything|sitewide|all|storewide)[^.!|]{0,30}/i);
+  if (sale) {
+    const withCode = out.find((p) => p.pct === +sale[1]);
+    if (withCode) { withCode.sitewide = true; withCode.text = `${sale[0].trim()} with code ${withCode.code}`.slice(0, 120); }
+    else out.push({ code: null, text: sale[0].trim().slice(0, 120), pct: +sale[1], sitewide: true });
+  }
   return out.slice(0, 3);
+}
+// The best discount that applies to anyone (not first-order-only), as a fraction of price.
+function bestPromo(promos) {
+  const ok = (promos || []).filter((p) => p.pct && !p.firstOrder);
+  return ok.sort((a, b) => b.pct - a.pct)[0] || null;
 }
 async function storeInfo(v, prevInfo) {
   const cacheF = path.join(CACHE, `store-${v.id}.json`);
@@ -603,6 +634,19 @@ async function main() {
     i.effPpg = i.shipPpg ?? i.bestPpg;
     i.effGrams = best?.x.grams ?? i.bestPpgGrams;
     i.group = groupKey(i);
+    // with the store's best public promo code (not first-order-only), shipping figured on the discounted total
+    const promo = bestPromo(vstat.find((s) => s.id === i.vendorId)?.promos);
+    if (promo && i.shipPpg) {
+      let cb = null;
+      for (const x of i.variants) {
+        if (!x.ppg || (i.available && !x.available)) continue;
+        const lp = landed(x.price * (1 - promo.pct / 100), ship) / x.grams;
+        if (!cb || lp < cb) cb = lp;
+      }
+      if (cb && cb < i.shipPpg) { i.codePpg = +cb.toFixed(2); i.code = promo.code || null; i.codePct = promo.pct; }
+    }
+    // mg of THCa per dollar, from the listed potency and the shipped price per gram
+    if (i.thca && i.effPpg) i.mgPerDollar = Math.round((i.thca * 10) / i.effPpg);
   }
 
   // medians of shipped $/g from S/A in-stock items, per category+size bucket
@@ -636,6 +680,11 @@ async function main() {
     i.quality = Math.round(Math.max(0, Math.min(100, q * (100 / 80))));
     i.value = i.dealRatio ? Math.round(i.quality * Math.sqrt(Math.max(0.5, Math.min(2, i.dealRatio)))) : null;
     i.bDeal = i.tier === 'B' ? !!(i.dealRatio && i.dealRatio >= 1.33) : null;
+    if (i.codePpg && med) {
+      i.dealRatioCode = +(med / i.codePpg).toFixed(2);
+      i.valueCode = Math.round(i.quality * Math.sqrt(Math.max(0.5, Math.min(2, i.dealRatioCode))));
+      if (i.tier === 'B') i.bDealCode = i.dealRatioCode >= 1.33;
+    }
   }
   updateHistory(items);
   const out = { generatedAt: new Date().toISOString(), medians, vendors: vstat, items };
