@@ -6,7 +6,9 @@ These two stores sit behind a Cloudflare check that blocks the cloud scraper. To
 2. Ask Claude to "recapture WAR" (or Crysp). Claude runs the snippet below in that tab and reads the lines out.
 3. Claude saves the lines to `captures/<id>-capture.txt`, runs `node import-capture.mjs <id> captures/<id>-capture.txt`, and pushes. The next daily run picks it up.
 
-Captures older than 3 days show as "Cached" on the page.
+Captures older than 3 days show as "Cached" on the page. Pushing a capture starts a cloud refresh automatically.
+
+**Crysp photos:** Crysp's Cloudflare blocks its images on other sites, so Crysp photos are stored in `images/crysp/` as 160px WebP thumbnails. During a Crysp capture, Claude also builds the thumbnails in the tab (canvas → WebP), downloads them as one `crysp-photos.json` file (with the user's OK), writes them to `images/crysp/`, and points the capture lines at `images/crysp/<name>.webp`.
 
 ## Snippet (run in the store's tab)
 
