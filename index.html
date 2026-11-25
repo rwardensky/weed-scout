@@ -3,7 +3,7 @@
 <title>Weed Scout</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="theme-color" content="#121514">
+<meta name="theme-color" content="#2f9e6a">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -11,163 +11,200 @@
 <meta name="apple-mobile-web-app-title" content="Weed Scout">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
 <style>
-/* Calm dark list: one sans family, total price first, plain-word deal verdicts, filters folded into one button. */
+/* Bright and playful: cream page, gradient hero, white product cards with a color per product type, chunky rounded controls. */
 :root {
-  --bg: #121514; --surface: #181c1b; --raised: #1f2422; --sunk: #232927; --line: #2a302e; --line-soft: #222826;
-  --fg: #eceeeb; --muted: #9aa29d; --faint: #6f7772; --accent: #e9a23b; --accent-soft: #3a2c15;
-  --good: #7fd4a0; --good-soft: #1b3326; --great: #a6f0c0; --great-soft: #1f4430; --warn: #e3b448; --bad: #f09484; --bad-soft: #3a211d;
-  --tS: #b38cf2; --tA: #6fb2ec; --tB: #8b938e; --star: #f0b443;
-  --display: "Inter", "Segoe UI", system-ui, sans-serif; --body: var(--display); --mono: var(--display);
-  color-scheme: dark;
+  --bg: #fff8ec; --surface: #ffffff; --raised: #ffffff; --sunk: #f4ecdd; --line: #eadfca; --line-soft: #f1e8d7;
+  --fg: #2b2135; --muted: #6e6478; --faint: #9a90a3; --accent: #e0612f; --accent-soft: #ffe6d6;
+  --good: #1f8a4c; --good-soft: #dbf5e3; --great: #0f6b37; --great-soft: #b9efcc; --warn: #b47200; --bad: #c2392b; --bad-soft: #fde1dc;
+  --tS: #8b4dff; --tA: #1f8fe5; --tB: #8a8f98; --star: #f2a900;
+  --c-rosin: #f2a516; --c-flower: #38b46a; --c-preroll: #ff7a59; --c-vape: #3b8cff; --c-concentrate: #a35cf0; --c-edible: #ff5fa2;
+  --display: "Fredoka", "Segoe UI", system-ui, sans-serif; --body: "Inter", "Segoe UI", system-ui, sans-serif; --mono: var(--body);
+  --shadow: 0 1px 2px rgb(60 40 20 / .06), 0 4px 14px rgb(60 40 20 / .06);
+  color-scheme: light;
 }
 * { box-sizing: border-box }
 [hidden] { display: none !important }
-body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body); margin: 0; -webkit-font-smoothing: antialiased; font-feature-settings: "tnum" 1, "cv11" 1 }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg) }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body); margin: 0; -webkit-font-smoothing: antialiased; font-feature-settings: "tnum" 1 }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: #2f9e6a }
 .wrap { max-width: 1080px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-header.top { padding-block: 24px 16px; display: flex; flex-wrap: wrap; gap: 14px 32px; align-items: end; justify-content: space-between }
-h1 { font: 700 clamp(26px, 4vw, 32px)/1.1 var(--display); margin: 0; letter-spacing: -0.025em }
-h1 span { color: var(--accent) }
-.sub { color: var(--muted); margin: 6px 0 0; max-width: 56ch; font-size: 14px }
-.stats { display: flex; gap: 24px; flex-wrap: wrap }
-.stat b { display: block; font: 600 20px/1.15 var(--display) }
-.stat span { font-size: 12px; color: var(--muted) }
-.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line) }
+.hero { background: linear-gradient(120deg, #2f9e6a 0%, #1fa3a0 38%, #5b6cf0 72%, #a35cf0 100%); color: #fff; position: relative; overflow: hidden }
+.hero::after { content: ""; position: absolute; inset: auto -60px -80px auto; width: 260px; height: 260px; border-radius: 50%; background: rgb(255 255 255 / .08) }
+header.top { padding-block: 26px 22px; display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: end; justify-content: space-between; position: relative; z-index: 1 }
+h1 { font: 700 clamp(30px, 5vw, 40px)/1.05 var(--display); margin: 0; letter-spacing: -0.01em; color: #fff }
+h1 > span:last-child { color: #ffe27a }
+.leaf { margin-right: 6px }
+.sub { color: rgb(255 255 255 / .88); margin: 6px 0 0; max-width: 56ch; font-size: 14px }
+.stats { display: flex; gap: 10px; flex-wrap: wrap }
+.stat { background: rgb(255 255 255 / .16); border: 1px solid rgb(255 255 255 / .22); border-radius: 14px; padding: 8px 12px; min-width: 92px }
+.stat b { display: block; font: 600 20px/1.15 var(--display); color: #fff }
+.stat span { font-size: 11.5px; color: rgb(255 255 255 / .85) }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line) }
 .bar .wrap { padding-block: 10px; display: flex; flex-direction: column; gap: 8px }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
 .scopenote { margin: -2px 0 0 }
 .scopenote:empty { display: none }
-.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; flex-wrap: wrap }
-.seg button { font: 500 13px var(--body); color: var(--muted); background: transparent; border: 0; padding: 6px 11px; cursor: pointer; border-radius: 8px; white-space: nowrap }
+.seg { display: inline-flex; background: var(--sunk); border-radius: 999px; padding: 3px; gap: 2px; flex-wrap: wrap }
+.seg button { font: 600 13px var(--body); color: var(--muted); background: transparent; border: 0; padding: 6px 13px; cursor: pointer; border-radius: 999px; white-space: nowrap }
 .seg button:hover { color: var(--fg) }
-.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg) }
-.chip { font: 500 13px var(--body); color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; white-space: nowrap }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 3px rgb(60 40 20 / .15) }
+#scope button[aria-pressed="true"] { background: var(--fg); color: #fff }
+.chip { font: 600 13px var(--body); color: var(--muted); background: var(--surface); border: 1.5px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; white-space: nowrap }
 .chip:hover { color: var(--fg); border-color: var(--faint) }
-.chip[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg) }
-.lbl { font-size: 12px; color: var(--faint); margin-right: 2px }
-input[type=search], select { font: 14px var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 7px 11px }
+.chip[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: #fff }
+.chip.c-rosin[aria-pressed="true"] { background: var(--c-rosin); border-color: var(--c-rosin); color: #3b2500 }
+.chip.c-flower[aria-pressed="true"] { background: var(--c-flower); border-color: var(--c-flower) }
+.chip.c-preroll[aria-pressed="true"] { background: var(--c-preroll); border-color: var(--c-preroll) }
+.chip.c-vape[aria-pressed="true"] { background: var(--c-vape); border-color: var(--c-vape) }
+.chip.c-concentrate[aria-pressed="true"] { background: var(--c-concentrate); border-color: var(--c-concentrate) }
+.chip.c-edible[aria-pressed="true"] { background: var(--c-edible); border-color: var(--c-edible) }
+.lbl { font-size: 12px; font-weight: 600; color: var(--faint); margin-right: 2px }
+input[type=search], select { font: 14px var(--body); color: var(--fg); background: var(--surface); border: 1.5px solid var(--line); border-radius: 999px; padding: 7px 14px }
 input[type=search] { flex: 1 1 220px; min-width: 0 }
-button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px }
 #filtersBtn { display: inline-block }
-.morefilters { display: none; flex-direction: column; gap: 8px; padding: 10px 0 4px; border-top: 1px solid var(--line-soft) }
+.morefilters { display: none; flex-direction: column; gap: 8px; padding: 10px 0 4px; border-top: 1px dashed var(--line) }
 .bar.open .morefilters { display: flex }
-main { padding-block: 14px 48px; display: flex; flex-direction: column; gap: 36px }
+main { padding-block: 18px 56px; display: flex; flex-direction: column; gap: 36px }
 .note { font-size: 13px; color: var(--muted) }
-.note a, .banner a { color: var(--accent) }
-.banner { font-size: 13px; padding: 9px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 10px; color: var(--muted) }
-#count { margin: 0 0 8px }
-.list { display: flex; flex-direction: column }
-.entry { border-top: 1px solid var(--line-soft) }
-.entry:first-child { border-top: 0 }
-.item { display: grid; grid-template-columns: 26px 56px minmax(0, 1fr) 128px 132px; gap: 14px; align-items: center; padding: 14px 4px }
-.item:hover { background: color-mix(in srgb, var(--surface) 60%, transparent) }
+.note a, .banner a { color: var(--accent); font-weight: 600 }
+.banner { font-size: 13px; padding: 10px 14px; border-radius: 14px; background: #fff3c9; border: 1px solid #f5df8f; margin-bottom: 12px; color: #6b5400 }
+#count { margin: 0 0 10px; font-weight: 600 }
+.list { display: flex; flex-direction: column; gap: 10px }
+.entry { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); border-left: 6px solid var(--line); overflow: hidden }
+.entry.c-rosin { border-left-color: var(--c-rosin) } .entry.c-flower { border-left-color: var(--c-flower) } .entry.c-preroll { border-left-color: var(--c-preroll) }
+.entry.c-vape { border-left-color: var(--c-vape) } .entry.c-concentrate { border-left-color: var(--c-concentrate) } .entry.c-edible { border-left-color: var(--c-edible) }
+.item { display: grid; grid-template-columns: 26px 64px minmax(0, 1fr) 128px 136px; gap: 14px; align-items: center; padding: 12px 14px 12px 10px }
 .lead { display: flex; flex-direction: column; align-items: center; gap: 4px }
-.rank { font: 500 11px var(--body); color: var(--faint) }
-.star { font-size: 18px; line-height: 1; background: none; border: 0; padding: 2px; cursor: pointer; color: var(--faint); border-radius: 6px }
-.star[aria-pressed="true"], .star:hover { color: var(--star) }
-.thumb { display: block; width: 56px; height: 56px; border-radius: 10px; background: var(--sunk); object-fit: cover }
+.rank { font: 600 12px var(--display); color: var(--faint) }
+.star { font-size: 19px; line-height: 1; background: none; border: 0; padding: 2px; cursor: pointer; color: #d9cdb8; border-radius: 6px; transition: transform .15s }
+.star[aria-pressed="true"], .star:hover { color: var(--star); transform: scale(1.15) }
+.thumb { display: block; width: 64px; height: 64px; border-radius: 14px; background: var(--sunk); object-fit: cover }
 .name { min-width: 0 }
-.name > a { color: var(--fg); font-weight: 600; font-size: 15.5px; text-decoration: none; line-height: 1.3 }
+.name > a { color: var(--fg); font: 600 16px/1.25 var(--display); text-decoration: none }
 .name > a:hover { color: var(--accent) }
-.where { font-size: 13px; color: var(--muted); margin-top: 2px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap }
+.where { font-size: 13px; color: var(--muted); margin-top: 3px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap }
 .meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; font-size: 12px; color: var(--muted); align-items: center }
-.pill { font: 600 10.5px var(--body); padding: 1px 6px; border-radius: 5px; color: #101312; letter-spacing: .02em }
-.t-L { background: var(--good) }
+.pill { font: 700 10.5px var(--body); padding: 2px 7px; border-radius: 6px; color: #fff; letter-spacing: .02em }
+.t-L { background: var(--c-flower) }
 .t-S { background: var(--tS) } .t-A, .t-Ap { background: var(--tA) } .t-B, .t-C, .t-D { background: var(--tB) }
-.tag { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); border: 0 }
-.tag.hm { color: var(--accent); background: var(--accent-soft) }
+.tag { font-size: 11.5px; font-weight: 500; padding: 2px 9px; border-radius: 999px; background: var(--sunk); color: var(--muted); border: 0 }
+.tag.hm { color: #8a4a00; background: #ffe9c2 }
 .tag.sale { background: var(--bad-soft); color: var(--bad) }
 .tag.oos { background: var(--sunk); color: var(--faint) }
 .tag.move { background: var(--good-soft); color: var(--good) }
-.linkbtn { font: 500 12px var(--body); color: var(--accent); background: none; border: 0; padding: 0 2px; cursor: pointer; text-decoration: none }
+.linkbtn { font: 600 12px var(--body); color: var(--accent); background: none; border: 0; padding: 0 2px; cursor: pointer; text-decoration: none }
 .linkbtn:hover { text-decoration: underline }
 .num { font: 500 15px var(--body); text-align: right }
 .num small { display: block; font: 12px var(--body); color: var(--muted) }
 .num small b { color: var(--fg); font-weight: 600 }
-.price > b { display: block; font: 650 18px/1.2 var(--display); letter-spacing: -0.01em }
-.verdict { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right }
+.price > b { display: block; font: 700 21px/1.15 var(--display); color: var(--fg) }
+.verdict { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right }
 .verdict small { font-size: 12px; color: var(--muted) }
-.verdict .qual b { color: var(--fg); font-weight: 600 }
-.deal { font: 600 13px var(--body); padding: 2px 9px; border-radius: 999px; display: inline-block; white-space: nowrap }
-.deal.great { background: var(--great-soft); color: var(--great) } .deal.good { background: var(--good-soft); color: var(--good) }
+.verdict .qual b { color: var(--fg); font-weight: 700 }
+.deal { font: 700 13px var(--body); padding: 3px 11px; border-radius: 999px; display: inline-block; white-space: nowrap }
+.deal.great { background: linear-gradient(90deg, #22c06a, #12a39a); color: #fff } .deal.good { background: var(--good-soft); color: var(--good) }
 .deal.bad { background: var(--bad-soft); color: var(--bad) } .deal.even { background: var(--sunk); color: var(--muted) }
-.rq { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--line); font-size: 13px; line-height: 1.45 }
-.rq.pos { border-left-color: var(--good) } .rq.neg { border-left-color: var(--bad) }
+.deal.mini { font-size: 11px; padding: 1px 7px; margin-left: 4px }
+.rq { margin: 0 0 8px; padding: 8px 12px; border-radius: 0 10px 10px 0; background: var(--bg); border-left: 4px solid var(--line); font-size: 13px; line-height: 1.45 }
+.rq.pos { border-left-color: var(--c-flower) } .rq.neg { border-left-color: var(--bad) }
 .rq cite { display: block; font-style: normal; font-size: 12px; color: var(--muted); margin-top: 3px }
-.rtag { cursor: pointer; font-family: inherit } .rtag.pos { color: var(--good) } .rtag.neg { color: var(--bad) }
-.details { margin: 0 4px 14px calc(26px + 56px + 32px); padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; font-size: 13px }
-.details h3 { font: 600 12px var(--body); color: var(--muted); margin: 0 0 8px }
+.rtag { cursor: pointer; font-family: inherit } .rtag.pos { color: var(--good); background: var(--good-soft) } .rtag.neg { color: var(--bad); background: var(--bad-soft) }
+.details { margin: 0 14px 14px; padding: 16px; background: var(--bg); border-radius: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; font-size: 13px }
+.details h3 { font: 600 14px var(--display); color: var(--fg); margin: 0 0 8px }
 .details table { min-width: 0; font-size: 13px }
 .details td, .details th { padding: 3px 8px 3px 0; border: 0 }
-.details th { text-align: left; font-weight: 500; font-size: 12px; color: var(--faint) } .details th.n, .details td.n { text-align: right }
+.details th { text-align: left; font-weight: 600; font-size: 12px; color: var(--faint) } .details th.n, .details td.n { text-align: right }
 .spark { display: block; width: 100%; max-width: 260px; height: 56px }
-.spark polyline { fill: none; stroke: var(--accent); stroke-width: 2 }
+.spark polyline { fill: none; stroke: var(--accent); stroke-width: 2.5 }
 .spark circle { fill: var(--accent) }
-.alt { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line-soft) }
-.alt a { color: var(--fg); text-decoration: none } .alt a:hover { color: var(--accent) } .alt span { white-space: nowrap }
-.watchbtn { margin-top: 8px; font: 500 13px var(--body); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer }
+.alt { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--line) }
+.alt a { color: var(--fg); text-decoration: none } .alt a:hover { color: var(--accent) } .alt > span { white-space: nowrap }
+.watchbtn { margin-top: 8px; font: 600 13px var(--body); padding: 6px 13px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer }
 .watchbtn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent) }
 .codeline { color: var(--good) !important }
-.addon { background: var(--accent-soft); color: var(--fg); padding: 6px 8px; border-radius: 8px; margin-top: 8px }
+.addon { background: #fff3c9; color: var(--fg); padding: 8px 10px; border-radius: 10px; margin-top: 8px }
 .addon a { color: var(--accent) }
-.mynote { width: 100%; font: 13px var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; resize: vertical }
-input[type=number] { width: 90px; font: 14px var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px }
-#cartOut { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px }
-#cartOut > p { grid-column: 1 / -1; margin: 0 }
-.cart { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: 13px; display: flex; flex-direction: column; gap: 6px }
-.carthead { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px }
+.mynote { width: 100%; font: 13px var(--body); color: var(--fg); background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 8px; resize: vertical }
+input[type=number] { width: 90px; font: 14px var(--body); color: var(--fg); background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 7px 8px }
+/* order planner */
+.planner { background: linear-gradient(135deg, #fff 0%, #fff4e4 100%); border: 2px solid #ffd9b8; border-radius: 22px; padding: 18px; box-shadow: var(--shadow) }
+.planhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 12px }
+.planhead h2 { margin: 0 }
+.planform { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: flex-end }
+.field { display: flex; flex-direction: column; gap: 6px }
+.field > span:first-child { font-size: 12px; font-weight: 700; color: var(--muted) }
+.money-in { display: inline-flex; align-items: center; gap: 2px; font: 700 22px var(--display); background: var(--surface); border: 2px solid var(--line); border-radius: 14px; padding: 2px 10px }
+.money-in input { border: 0; width: 84px; font: 700 22px var(--display); padding: 4px 0; background: transparent }
+.money-in input:focus-visible { outline: 0 }
+.money-in:focus-within { border-color: var(--accent) }
+.go { font: 600 16px var(--display); color: #fff; background: linear-gradient(90deg, #ff7a59, #e0612f); border: 0; border-radius: 999px; padding: 10px 22px; cursor: pointer; box-shadow: 0 4px 14px rgb(224 97 47 / .35) }
+.go:hover { filter: brightness(1.06) }
+#cartOut:not(:empty) { margin-top: 16px }
+.plans { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px }
+#cartOut > p { margin: 0 }
+.cart { background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px; font-size: 13px; display: flex; flex-direction: column; gap: 8px }
+.cart.top { border: 2px solid var(--c-flower); box-shadow: 0 6px 20px rgb(56 180 106 / .18) }
+.carthead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font: 600 16px var(--display) }
+.carthead .tot { font: 700 22px var(--display) }
+.store { background: var(--bg); border-radius: 12px; padding: 8px 10px }
+.storename { font-weight: 700; display: flex; gap: 6px; align-items: center; margin-bottom: 2px }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--line) }
+.dot.c-rosin { background: var(--c-rosin) } .dot.c-flower { background: var(--c-flower) } .dot.c-preroll { background: var(--c-preroll) } .dot.c-vape { background: var(--c-vape) } .dot.c-concentrate { background: var(--c-concentrate) }
 .cmpbox { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; margin: 0 }
 .cmpbar[hidden] { display: none }
-.cmpbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 8; display: flex; gap: 12px; align-items: center; background: var(--raised); border: 1px solid var(--accent); border-radius: 999px; padding: 6px 8px 6px 16px; box-shadow: 0 8px 28px rgb(0 0 0 / .4); font-size: 14px }
+.cmpbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 8; display: flex; gap: 12px; align-items: center; background: var(--surface); border: 2px solid var(--accent); border-radius: 999px; padding: 6px 8px 6px 16px; box-shadow: 0 8px 28px rgb(60 40 20 / .25); font-size: 14px }
 .cmpbar .more { padding: 6px 14px }
-dialog#cmpDlg { width: min(1000px, calc(100vw - 32px)); max-height: calc(100vh - 48px); border: 1px solid var(--line); border-radius: 14px; background: var(--bg); color: var(--fg); padding: 16px }
-dialog#cmpDlg::backdrop { background: rgb(0 0 0 / .6) }
+dialog#cmpDlg { width: min(1000px, calc(100vw - 32px)); max-height: calc(100vh - 48px); border: 0; border-radius: 18px; background: var(--bg); color: var(--fg); padding: 16px }
+dialog#cmpDlg::backdrop { background: rgb(43 33 53 / .5) }
 .dlghead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px }
 table.cmp { min-width: 560px } table.cmp th { width: 130px } table.cmp td { min-width: 180px } table.cmp .thumb { width: 64px; height: 64px; margin-bottom: 6px }
 [data-vship][aria-pressed="true"] { font-weight: 700; text-decoration: none; background: var(--accent-soft); border-radius: 4px; padding: 0 4px }
 .buy input[type=number] { width: 80px }
-input[type=date] { font: 13px var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px }
-.empty { padding: 48px 16px; text-align: center; color: var(--muted) }
-h2 { font: 650 19px var(--display); margin: 0 0 6px; letter-spacing: -0.01em }
-.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface) }
+input[type=date] { font: 13px var(--body); color: var(--fg); background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 8px }
+.empty { padding: 40px 16px; text-align: center; color: var(--muted); background: var(--surface); border-radius: 16px }
+h2 { font: 600 22px var(--display); margin: 0 0 6px }
+.tbl-wrap { overflow-x: auto; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow) }
 table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 860px }
 th, td { text-align: left; padding: 9px 12px; border-top: 1px solid var(--line-soft); vertical-align: top }
-th { font-weight: 500; font-size: 12px; color: var(--faint); border-top: 0 }
+th { font-weight: 700; font-size: 12px; color: var(--faint); border-top: 0 }
 td.n { text-align: right }
 .st-ok { color: var(--good) } .st-stale { color: var(--warn) } .st-error { color: var(--bad) }
 td a { color: var(--accent) }
-code.promo { font: 600 12px ui-monospace, Consolas, monospace; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 4px; user-select: all }
+code.promo { font: 700 12px ui-monospace, Consolas, monospace; background: #ffe9c2; color: #8a4a00; padding: 1px 6px; border-radius: 5px; user-select: all }
 .threads { margin: 4px 0 0; padding-left: 16px; color: var(--muted) }
 .quote { margin: 4px 0; padding-left: 8px; border-left: 3px solid var(--line); color: var(--fg) }
 .quote.pos { border-color: var(--good) } .quote.neg { border-color: var(--bad) }
 details summary { cursor: pointer; color: var(--accent) }
-.more { align-self: center; font: 500 14px var(--body); padding: 9px 18px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer }
+.more { align-self: center; font: 600 14px var(--body); padding: 9px 18px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer }
 @media (max-width: 760px) {
-  /* phones: sort and type rows scroll sideways instead of wrapping */
   .scroller { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px }
   .scroller::-webkit-scrollbar { display: none }
   .scroller .seg { flex-wrap: nowrap }
   .bar.open { position: static }
-  .stats { gap: 16px } .stat b { font-size: 17px }
-  .item { grid-template-columns: 22px 52px minmax(0, 1fr) auto; gap: 10px 12px; padding: 12px 0; align-items: start }
-  .thumb { width: 52px; height: 52px }
-  .item .price { grid-column: 4; grid-row: 1 }
-  .item .verdict { grid-column: 3 / 5; grid-row: 2; flex-direction: row; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 4px 8px; text-align: left }
-  .name > a { font-size: 15px }
-  .details { margin: 0 0 12px; padding: 12px }
+  .stats { gap: 8px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; width: calc(100% + 32px) } .stat { min-width: max-content; padding: 6px 10px } .stat b { font-size: 17px }
+  .item { grid-template-columns: 22px 56px minmax(0, 1fr) auto; gap: 10px 12px; padding: 12px 12px 12px 8px; align-items: start }
+  .thumb { width: 56px; height: 56px }
+  .item .name { grid-column: 3 / 5; grid-row: 1 }
+  .item .price { grid-column: 1 / 4; grid-row: 2; text-align: left; padding-left: 34px }
+  .item .verdict { grid-column: 4; grid-row: 2 }
+  .name > a { font-size: 15.5px }
+  .details { margin: 0 8px 10px; padding: 12px }
+  .planner { padding: 14px; border-radius: 18px }
+  .planform { gap: 12px }
+  #planCats { flex-wrap: wrap }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 </style>
 
-<header class="wrap top">
+<div class="hero"><header class="wrap top">
   <div>
-    <h1>Weed <span>Scout</span></h1>
+    <h1><span class="leaf" aria-hidden="true">🌿</span>Weed <span>Scout</span></h1>
     <p class="sub">THCa deals from your tier list, priced with shipping, plus Ayr Carytown with your veteran discount.</p>
   </div>
   <div class="stats" id="stats"></div>
-</header>
+</header></div>
 
 <div class="bar">
   <div class="wrap">
@@ -194,6 +231,13 @@ details summary { cursor: pointer; color: var(--accent) }
       </div>
     </div>
     <div class="row scroller" id="cats"><span class="lbl">Type</span></div>
+    <div class="row scroller"><span class="lbl">For</span>
+      <div class="seg" id="mode">
+        <button data-m="" aria-pressed="true">✨ Best picks</button>
+        <button data-m="budget" aria-pressed="false" title="Cheapest per gram from every store, any tier">💸 Budget</button>
+        <button data-m="bulk" aria-pressed="false" title="Ounces of flower, 7g+ of rosin and other big sizes, any store">📦 Bulk</button>
+      </div>
+    </div>
     <div id="morefilters" class="morefilters">
     <div class="row f" id="moodrow" hidden><span class="lbl">Mood</span><span id="moods"></span>
       <span class="lbl" style="margin-left:8px">Strain</span>
@@ -223,22 +267,35 @@ details summary { cursor: pointer; color: var(--accent) }
 </div>
 
 <main class="wrap">
+  <section id="cartsec" class="planner">
+    <div class="planhead"><h2>🛒 Plan an order</h2><span class="note">Say what you want to spend and what you're after. It builds orders from the best deals, with shipping and promo codes counted.</span></div>
+    <div class="planform">
+      <label class="field"><span>Spend up to</span><span class="money-in">$<input id="cartBudget" type="number" min="10" step="5" value="150" inputmode="numeric" aria-label="Budget in dollars"></span></label>
+      <div class="field"><span>I want</span><div class="row" id="planCats">
+        <button class="chip c-rosin" data-pc="rosin" aria-pressed="true">Rosin &amp; hash</button>
+        <button class="chip c-flower" data-pc="flower" aria-pressed="false">Flower</button>
+        <button class="chip c-preroll" data-pc="preroll" aria-pressed="false">Pre-rolls</button>
+        <button class="chip c-vape" data-pc="vape" aria-pressed="false">Vapes</button>
+        <button class="chip c-concentrate" data-pc="concentrate" aria-pressed="false">Other concentrates</button>
+      </div></div>
+      <div class="field"><span>Shopping for</span><div class="seg" id="planStyle">
+        <button data-ps="value" aria-pressed="true" title="Best quality for the money from S, A and B-deal stores">✨ Best value</button>
+        <button data-ps="budget" aria-pressed="false" title="Lowest price per gram from any store, quality matters less">💸 Budget</button>
+        <button data-ps="bulk" aria-pressed="false" title="Big sizes only (ounces of flower, 7g+ of rosin) at the lowest price per gram, any store">📦 Bulk</button>
+      </div></div>
+      <div class="field"><span>From</span><div class="seg" id="planWhere">
+        <button data-pw="online" aria-pressed="true">Online</button>
+        <button data-pw="local" aria-pressed="false">Ayr</button>
+        <button data-pw="both" aria-pressed="false">Both</button>
+      </div></div>
+      <div class="field"><span>&nbsp;</span><div class="row"><button class="chip" id="cartMine" aria-pressed="false">Only my list</button><button class="go" id="cartGo">Build my order</button></div></div>
+    </div>
+    <div id="cartOut"></div>
+  </section>
   <section>
     <div id="syncnote"></div>
     <p class="note" id="count"></p>
     <div class="list" id="list"><div class="empty">Loading products…</div></div>
-  </section>
-  <section id="cartsec">
-    <h2>Cart builder</h2>
-    <p class="note">Pick a store and a budget. It finds the 1–4 products with the best value for the whole order: low price per gram after the free-shipping line and any promo code, weighed against quality.</p>
-    <div class="row" style="margin-top:8px">
-      <select id="cartVendor" aria-label="Store"></select>
-      <select id="cartCat" aria-label="Product type"><option value="rosin">Rosin &amp; hash</option><option value="flower">Flower</option><option value="concentrate">Other concentrates</option><option value="vape">Vapes</option><option value="preroll">Pre-rolls</option></select>
-      <label class="note" for="cartBudget">Budget $</label><input id="cartBudget" type="number" min="20" step="5" value="150" inputmode="numeric">
-      <button class="chip" id="cartMine" aria-pressed="false">Only my list</button>
-      <button class="more" id="cartGo">Build cart</button>
-    </div>
-    <div id="cartOut"></div>
   </section>
   <section>
     <h2>My stash</h2>
@@ -269,11 +326,11 @@ details summary { cursor: pointer; color: var(--accent) }
 
 <script>
 const CATS = { rosin: 'Rosin & hash', flower: 'Flower', concentrate: 'Other concentrates', vape: 'Vapes', preroll: 'Pre-rolls', edible: 'Edibles & other' };
-const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, codes: true, shipsMe: true, scope: 'online', moods: new Set(), strain: '', limit: 60, open: new Set(), compare: new Set() };
+const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, codes: true, shipsMe: true, scope: 'online', moods: new Set(), strain: '', limit: 60, open: new Set(), compare: new Set(), mode: '' };
 let D = null, V = {}, G = {};
 const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
-{ const saved = ls.get('scout', null); if (saved) { S.sort = saved.sort || S.sort; if (saved.cats) S.cats = new Set([...saved.cats, ...(saved.cats.includes('edible') ? [] : ['edible'])]); if (saved.scope) S.scope = saved.scope; if (saved.codes === false) S.codes = false; } }
-const save = () => ls.set('scout', { sort: S.sort, cats: [...S.cats], codes: S.codes, scope: S.scope });
+{ const saved = ls.get('scout', null); if (saved) { S.sort = saved.sort || S.sort; if (saved.cats) S.cats = new Set([...saved.cats, ...(saved.cats.includes('edible') ? [] : ['edible'])]); if (saved.scope) S.scope = saved.scope; if (saved.codes === false) S.codes = false; if (saved.mode) S.mode = saved.mode; } }
+const save = () => ls.set('scout', { sort: S.sort, cats: [...S.cats], codes: S.codes, scope: S.scope, mode: S.mode });
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = (n) => n == null ? '—' : '$' + (n >= 100 ? Math.round(n) : n.toFixed(2));
@@ -391,7 +448,10 @@ function visible() {
       if (S.strain && !(i.strainType || '').toLowerCase().startsWith(S.strain)) return false;
     } else {
       if (S.scope !== 'online' && (S.moods.size || S.strain)) return false; // mood and strain type come from the dispensary menu
-      if (i.pinned) { if (!S.tiers.has('P')) return false; }
+      // Budget and Bulk look at every store (Legendary and other lower tiers included)
+      if (S.mode === 'bulk' && !(i.effGrams >= BULK_MIN[i.category])) return false;
+      if (S.mode) { /* any tier */ }
+      else if (i.pinned) { if (!S.tiers.has('P')) return false; }
       else {
         if (!S.tiers.has(t)) return false;
         if (t === 'B' && !(i.bDeal || (S.codes && i.bDealCode))) return false;
@@ -567,7 +627,7 @@ function render() {
     const open = S.open.has(i.id);
     const starred = W.items.has(i.id);
     const dw = dealWord(dr(i));
-    return `<div class="entry"><div class="item">
+    return `<div class="entry c-${i.category}"><div class="item">
       <div class="lead"><span class="rank" aria-label="Rank ${n + 1}">${n + 1}</span><button class="star" data-star="${esc(i.id)}" aria-pressed="${starred}" aria-label="${starred ? 'Unstar' : 'Star'} ${esc(i.title)}">${starred ? '★' : '☆'}</button><input type="checkbox" class="cmpbox" data-cmp="${esc(i.id)}" ${S.compare.has(i.id) ? 'checked' : ''} aria-label="Compare ${esc(i.title)}" title="Compare"></div>
       ${i.image ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" tabindex="-1"><img class="thumb" loading="lazy" decoding="async" width="56" height="56" referrerpolicy="no-referrer" src="${esc(thumb(i.image))}" data-full="${esc(i.image)}" alt="${esc(i.title)}" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb'}))}"></a>` : '<div class="thumb"></div>'}
       <div class="name">
@@ -654,47 +714,126 @@ function addOnHint(i) {
   if (!best || best.ppgBoth >= alone.total / alone.grams) return '';
   return `💡 Add <a href="${esc(best.x.item.url)}" target="_blank" rel="noopener">${esc(best.x.item.title)}</a> (${best.x.grams}g, ${money(best.x.price)}) to clear the $${sh.freeOver} free-shipping line: ${money(best.ppgBoth)}/g across both, vs ${money(alone.total / alone.grams)}/g for this alone.`;
 }
-function buildCarts(vid, budget, onlyMine, cat) {
-  let cands = [];
-  for (const i of D.items) {
-    if (i.vendorId !== vid || !i.available || W.ratings[i.id]?.r < 0 || i.category !== cat) continue;
-    if (onlyMine && !(W.items.has(i.id) || (i.group && W.strains.has(i.group)) || W.ratings[i.id]?.r > 0)) continue;
-    for (const x of variantsOf(i)) if (x.price <= budget) cands.push({ ...x, score: (x.price / x.grams) / (myQ(i) / 70) });
+// ---------- order planner: budget + product types + style → whole orders, one or several stores ----------
+const P = { cats: new Set(['rosin']), style: 'value', where: 'online' };
+// "bulk" = the sizes people mean by buying in bulk, per product type
+const BULK_MIN = { flower: 28, rosin: 7, concentrate: 7, vape: 3, preroll: 10, edible: 1e9 };
+function storeTotal(vid, lines) {
+  if (V[vid]?.local) { const sub = lines.reduce((s, l) => s + l.price, 0); return { sub, disc: 0, ship: 0, total: sub, promo: null }; }
+  return orderTotal(vid, lines);
+}
+function planCands(style, where, onlyMine) {
+  const qPow = style === 'value' ? 1.5 : 0.6;
+  // typical $/g per type (S/A, in stock) so a gram of rosin and a gram of flower compare fairly
+  const med = {};
+  for (const c of P.cats) {
+    const xs = D.items.filter((i) => i.category === c && i.available && pp(i) && /^(S|A)/.test(i.tier)).map(pp).sort((a, b) => a - b);
+    med[c] = xs[xs.length >> 1] || 20;
   }
-  cands.sort((a, b) => a.score - b.score);
-  const pool3 = cands.slice(0, 40), pool4 = cands.slice(0, 14), res = [];
-  const consider = (lines) => {
-    if (new Set(lines.map((l) => l.item.id)).size < lines.length) return; // one size per product
-    const t = orderTotal(vid, lines); if (t.total > budget) return;
-    const q = lines.reduce((s, l) => s + myQ(l.item) * l.grams, 0) / t.grams; // gram-weighted quality
-    res.push({ lines, ...t, ppg: t.total / t.grams, q, score: (t.total / t.grams) / Math.pow(q / 70, 1.5) });
-  };
-  for (let a = 0; a < pool3.length; a++) {
-    consider([pool3[a]]);
-    for (let b = a + 1; b < pool3.length; b++) {
-      consider([pool3[a], pool3[b]]);
-      for (let c = b + 1; c < pool3.length; c++) consider([pool3[a], pool3[b], pool3[c]]);
+  const out = {};
+  for (const c of P.cats) out[c] = [];
+  for (const i of D.items) {
+    if (!P.cats.has(i.category) || !i.available || W.ratings[i.id]?.r < 0) continue;
+    if (where === 'online' && i.local || where === 'local' && !i.local) continue;
+    if (!i.local && !shipsToMe(i.vendorId)) continue;
+    if (onlyMine && !(W.items.has(i.id) || (i.group && W.strains.has(i.group)) || W.ratings[i.id]?.r > 0)) continue;
+    // best value sticks to your S/A list (plus B-tier deals); budget and bulk open up every store, Legendary included
+    if (style === 'value' && !i.local && !i.pinned && !/^(S|A)/.test(i.tier) && !(i.tier === 'B' && (i.bDeal || i.bDealCode))) continue;
+    const q = myQ(i);
+    if (style === 'value' && q < 45) continue;
+    for (const x of variantsOf(i)) {
+      if (style === 'bulk' && x.grams < BULK_MIN[i.category]) continue;
+      if (style === 'budget' && q < 25) continue;
+      // "worth" = what these grams cost at a typical price, scaled by quality; plans maximize worth per dollar
+      const worth = x.grams * med[i.category] * Math.pow(q / 65, qPow);
+      out[i.category].push({ ...x, vid: i.vendorId, cat: i.category, q, worth, ratio: worth / x.price });
     }
   }
-  for (let a = 0; a < pool4.length; a++) for (let b = a + 1; b < pool4.length; b++) for (let c = b + 1; c < pool4.length; c++) for (let d = c + 1; d < pool4.length; d++) consider([pool4[a], pool4[b], pool4[c], pool4[d]]);
-  res.sort((x, y) => x.score - y.score);
+  for (const c of P.cats) out[c].sort((a, b) => b.ratio - a.ratio);
+  return out;
+}
+function planTotals(lines) {
+  const by = {};
+  for (const l of lines) (by[l.vid] ||= []).push(l);
+  const stores = Object.entries(by).map(([vid, ls]) => ({ vid, lines: ls, ...storeTotal(vid, ls) }));
+  return { stores, total: stores.reduce((s, x) => s + x.total, 0), worth: lines.reduce((s, l) => s + l.worth, 0), grams: lines.reduce((s, l) => s + l.grams, 0) };
+}
+// one pick per wanted type, then keep adding whatever adds the most worth per dollar while it fits
+function fillPlan(start, pool, budget, maxLines = 6) {
+  let lines = [...start];
+  for (let guard = 0; guard < 12 && lines.length < maxLines; guard++) {
+    const cur = planTotals(lines);
+    let best = null;
+    for (const x of pool) {
+      if (lines.some((l) => l.item.id === x.item.id)) continue;
+      const t = planTotals([...lines, x]);
+      if (t.total > budget) continue;
+      const gain = (t.worth - cur.worth) / Math.max(1, t.total - cur.total);
+      if (!best || gain > best.gain) best = { x, gain };
+    }
+    if (!best) break;
+    lines.push(best.x);
+  }
+  return lines;
+}
+function buildPlans(budget, onlyMine) {
+  const cands = planCands(P.style, P.where, onlyMine), cats = [...P.cats];
+  const missing = cats.filter((c) => !cands[c].length);
+  if (missing.length) return { plans: [], missing };
+  const plans = [];
+  const consider = (lines, kind) => {
+    const t = planTotals(lines);
+    if (t.total <= budget) plans.push({ lines, kind, ...t, score: t.worth / t.total });
+  };
+  // 1) mix of stores: try the top few of each type together
+  const top = cats.map((c) => cands[c].slice(0, 5));
+  const combos = (k, acc) => { if (k === top.length) return [acc]; return top[k].flatMap((x) => combos(k + 1, [...acc, x])); };
+  const all = cats.flatMap((c) => cands[c].slice(0, 30));
+  const mixes = combos(0, []).map((ls) => ({ ls, t: planTotals(ls) })).filter((m) => m.t.total <= budget).sort((a, b) => b.t.worth / b.t.total - a.t.worth / a.t.total).slice(0, 6);
+  for (const m of mixes) consider(fillPlan(m.ls, all, budget), 'mix');
+  // 2) one store, one box: fewer shipping fees
+  const vids = new Set(all.map((x) => x.vid));
+  for (const vid of vids) {
+    const per = cats.map((c) => cands[c].filter((x) => x.vid === vid).slice(0, 4));
+    if (per.some((p) => !p.length)) continue;
+    const pool = all.filter((x) => x.vid === vid).concat(...cats.map((c) => cands[c].filter((x) => x.vid === vid).slice(4, 20)));
+    const starts = [per.map((p) => p[0]), per.map((p) => p[1] || p[0])];
+    for (const s of starts) if (planTotals(s).total <= budget) consider(fillPlan(s, pool, budget), 'one');
+  }
+  plans.sort((a, b) => b.score - a.score);
   const out = [], seen = new Set();
-  for (const r of res) { const k = r.lines.map((l) => l.item.id).sort().join(); if (seen.has(k)) continue; seen.add(k); out.push(r); if (out.length >= 3) break; }
-  return { carts: out, sh: shipFor(vid), promo: promoFor(vid), n: cands.length };
+  const key = (p) => p.lines.map((l) => l.item.id + l.label).sort().join();
+  const bestMix = plans.find((p) => p.stores.length > 1);
+  const bestOne = plans.filter((p) => p.stores.length === 1);
+  const usedStore = new Set();
+  for (const p of [plans[0], bestMix, ...bestOne].filter(Boolean)) {
+    const k = key(p); if (seen.has(k)) continue;
+    // one alternative per store, so the options are actually different
+    if (p !== plans[0] && p.stores.length === 1 && usedStore.has(p.stores[0].vid)) continue;
+    seen.add(k); if (p.stores.length === 1) usedStore.add(p.stores[0].vid);
+    out.push(p); if (out.length >= 4) break;
+  }
+  return { plans: out, missing: [] };
 }
 function renderCart() {
-  const vid = $('#cartVendor').value, budget = +$('#cartBudget').value || 0, onlyMine = $('#cartMine').getAttribute('aria-pressed') === 'true', cat = $('#cartCat').value;
-  const v = V[vid]; if (!v) return;
-  const { carts, sh, promo, n } = buildCarts(vid, budget, onlyMine, cat);
-  const terms = `${sh.freeOver != null ? `Free shipping at $${sh.freeOver}` : 'No free-shipping line'}${sh.freeOver != null || sh.cost ? `, otherwise $${sh.cost}${sh.est ? ' (estimated)' : ''}` : ''}.${promo ? ` Applying ${promo.code ? `code <code class="promo">${esc(promo.code)}</code>` : 'the sale'} (−${promo.pct}%).` : ''}`;
-  const warn = shipsToMe(vid) ? '' : `<p class="banner">${esc(v.name)} ${shipStatus(vid) === 'no' ? 'is marked as not shipping' : 'says it doesn\'t ship THCa'} to ${esc(STATE_NAMES[W.settings.state])}.</p>`;
-  $('#cartOut').innerHTML = warn + `<p class="note">${esc(v.name)}: ${terms} ${esc(CATS[cat])} only${onlyMine ? ', from your list' : ''}; skips anything you thumbed down.</p>` + (carts.length ? carts.map((c, k) => `
-    <div class="cart"><div class="carthead"><b>${k === 0 ? 'Best' : `Option ${k + 1}`}: ${money(c.ppg)}/g</b><span class="note">${c.grams}g for ${money(c.total)} · quality ${Math.round(c.q)}</span></div>
-      ${c.lines.map((l) => `<div class="alt"><a href="${esc(l.item.url)}" target="_blank" rel="noopener">${esc(l.item.title)}</a><span>${l.grams}g · ${money(l.price)}</span></div>`).join('')}
-      <div class="note">Subtotal ${money(c.sub)}${c.disc ? ` − ${money(c.disc)} code` : ''} + ${c.ship ? money(c.ship) + ' shipping' : 'free shipping'} = <b>${money(c.total)}</b></div></div>`).join('')
-    : `<p class="empty">${n ? `Nothing fits under $${budget}. Try a higher budget.` : 'No in-stock products with a weight match these filters at this store.'}</p>`);
+  const budget = +$('#cartBudget').value || 0, onlyMine = $('#cartMine').getAttribute('aria-pressed') === 'true';
+  if (!P.cats.size) { $('#cartOut').innerHTML = '<p class="empty">Pick at least one product type.</p>'; return; }
+  const { plans, missing } = buildPlans(budget, onlyMine);
+  const styleTxt = { value: 'best value from your S/A stores', budget: 'lowest price per gram from any store', bulk: 'bulk sizes only, any store' }[P.style];
+  if (!plans.length) {
+    $('#cartOut').innerHTML = `<p class="empty">${missing.length ? `No in-stock ${missing.map((c) => CATS[c].toLowerCase()).join(' or ')} ${P.style === 'bulk' ? 'in bulk sizes ' : ''}that ships to you${P.where === 'local' ? ' at Ayr' : ''}.` : `Nothing fits under $${budget} with ${[...P.cats].map((c) => CATS[c].toLowerCase()).join(' + ')}. Try a higher budget or fewer types.`}</p>`;
+    return;
+  }
+  const title = (p, k) => k === 0 ? '🏆 Best plan' : p.stores.length > 1 ? '🔀 Mix of stores' : `📦 All from ${esc(V[p.stores[0].vid]?.name)}`;
+  $('#cartOut').innerHTML = `<p class="note">${esc(styleTxt)}; shipping, promo codes${P.where !== 'online' ? ' and your Ayr discount' : ''} included; skips anything you thumbed down.</p><div class="plans">` + plans.map((p, k) => `
+    <div class="cart ${k === 0 ? 'top' : ''}">
+      <div class="carthead"><b>${title(p, k)}</b><span class="tot">${money(p.total)}</span></div>
+      <div class="note">${Math.round(p.grams * 10) / 10}g total · ${money(p.total / p.grams)}/g overall · ${money(budget - p.total)} left</div>
+      ${p.stores.map((s) => `<div class="store"><div class="storename">${esc(V[s.vid]?.name || s.vid)} <span class="pill ${tierCls(V[s.vid]?.tier)}">${V[s.vid]?.local ? 'Local' : esc(V[s.vid]?.tier || '')}</span></div>
+        ${s.lines.map((l) => { const d = dealWord(dr(l.item)); return `<div class="alt"><a href="${esc(l.item.url)}" target="_blank" rel="noopener"><span class="dot ${'c-' + l.cat}"></span>${esc(l.item.title)}</a><span>${l.grams}g · ${money(l.price)}${d && d.cls !== 'even' && d.cls !== 'bad' ? ` <span class="deal ${d.cls} mini">${d.word}</span>` : ''}</span></div>`; }).join('')}
+        <div class="note">${money(s.sub)}${s.disc ? ` − ${money(s.disc)} code${s.promo?.code ? ` <code class="promo">${esc(s.promo.code)}</code>` : ''}` : ''} ${V[s.vid]?.local ? '(in store, discount included)' : s.ship ? `+ ${money(s.ship)} shipping` : '+ free shipping'} = <b>${money(s.total)}</b></div></div>`).join('')}
+    </div>`).join('') + '</div>';
 }
-
 // ---------- compare up to 4 products side by side ----------
 function renderCompareBar() {
   const bar = $('#cmpbar'), n = S.compare.size;
@@ -794,7 +933,7 @@ function wire() {
     const n = D.items.filter((i) => i.category === k).length;
     const b = document.createElement('button'); b.className = 'chip'; b.textContent = `${l} ${n}`; b.setAttribute('aria-pressed', S.cats.has(k));
     // tap = only this category; tap it again when it's the only one = everything
-    b.dataset.cat = k;
+    b.dataset.cat = k; b.classList.add('c-' + k);
     b.onclick = () => { S.cats = S.cats.size === 1 && S.cats.has(k) ? new Set(Object.keys(CATS)) : new Set([k]); syncCats(); S.limit = 60; save(); render(); };
     cats.append(b);
   }
@@ -802,6 +941,14 @@ function wire() {
   all.onclick = () => { S.cats = new Set(Object.keys(CATS)); syncCats(); S.limit = 60; save(); render(); };
   cats.querySelector('.lbl').after(all); syncCats(); catCounts();
   document.querySelectorAll('#sort button').forEach((b) => { b.setAttribute('aria-pressed', b.dataset.v === S.sort); b.onclick = () => { S.sort = b.dataset.v; document.querySelectorAll('#sort button').forEach((x) => x.setAttribute('aria-pressed', x === b)); save(); render(); }; });
+  const setSort = (v) => { S.sort = v; document.querySelectorAll('#sort button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === v)); };
+  document.querySelectorAll('#mode button').forEach((b) => {
+    b.setAttribute('aria-pressed', b.dataset.m === S.mode);
+    b.onclick = () => {
+      S.mode = b.dataset.m; document.querySelectorAll('#mode button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+      setSort(S.mode ? 'ppg' : 'value'); S.limit = 60; save(); render();
+    };
+  });
   document.querySelectorAll('[data-tier]').forEach((b) => b.onclick = () => { const t = b.dataset.tier; S.tiers.has(t) ? S.tiers.delete(t) : S.tiers.add(t); b.setAttribute('aria-pressed', S.tiers.has(t)); render(); });
   const tog = (id, key) => $(id).onclick = (e) => { S[key] = !S[key]; e.currentTarget.setAttribute('aria-pressed', S[key]); S.limit = 60; render(); };
   tog('#instock', 'instock'); tog('#hmonly', 'hm'); tog('#sized', 'sized'); tog('#starred', 'starred'); tog('#moved', 'moved');
@@ -833,9 +980,10 @@ function wire() {
   syncState();
   $('#codes').setAttribute('aria-pressed', S.codes);
   $('#codes').onclick = (e) => { S.codes = !S.codes; e.currentTarget.setAttribute('aria-pressed', S.codes); save(); render(); if ($('#cartOut').innerHTML) renderCart(); };
-  const cv = $('#cartVendor');
-  const order = { S: 0, 'A+': 1, A: 2, B: 3, C: 4, D: 5, L: 6 };
-  for (const v of [...D.vendors].filter((v) => v.count && !v.local).sort((a, b) => order[a.tier] - order[b.tier] || a.name.localeCompare(b.name))) cv.add(new Option(`${v.name} (${v.tier})`, v.id));
+  document.querySelectorAll('[data-pc]').forEach((b) => b.onclick = () => { const c = b.dataset.pc; P.cats.has(c) ? P.cats.delete(c) : P.cats.add(c); b.setAttribute('aria-pressed', P.cats.has(c)); });
+  const segPick = (sel, attr, key) => document.querySelectorAll(sel + ' button').forEach((b) => b.onclick = () => { P[key] = b.dataset[attr]; document.querySelectorAll(sel + ' button').forEach((x) => x.setAttribute('aria-pressed', x === b)); if ($('#cartOut').innerHTML) renderCart(); });
+  segPick('#planStyle', 'ps', 'style'); segPick('#planWhere', 'pw', 'where');
+  $('#cartBudget').onkeydown = (e) => { if (e.key === 'Enter') renderCart(); };
   $('#cartGo').onclick = renderCart;
   $('#cmpOpen').onclick = openCompare;
   $('#cmpClose').onclick = () => $('#cmpDlg').close();
