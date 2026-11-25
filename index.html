@@ -81,6 +81,8 @@ main { padding-block: 18px 56px; display: flex; flex-direction: column; gap: 36p
 .star { font-size: 19px; line-height: 1; background: none; border: 0; padding: 2px; cursor: pointer; color: #d9cdb8; border-radius: 6px; transition: transform .15s }
 .star[aria-pressed="true"], .star:hover { color: var(--star); transform: scale(1.15) }
 .thumb { display: block; width: 64px; height: 64px; border-radius: 14px; background: var(--sunk); object-fit: cover }
+.thumb.ph { display: grid; place-items: center; font-size: 28px }
+.thumb.ph.c-rosin { background: #fff0cc } .thumb.ph.c-flower { background: #dcf5e4 } .thumb.ph.c-preroll { background: #ffe3da } .thumb.ph.c-vape { background: #dde9ff } .thumb.ph.c-concentrate { background: #eee0ff } .thumb.ph.c-edible { background: #ffe0ee }
 .name { min-width: 0 }
 .name > a { color: var(--fg); font: 600 16px/1.25 var(--display); text-decoration: none }
 .name > a:hover { color: var(--accent) }
@@ -325,6 +327,7 @@ details summary { cursor: pointer; color: var(--accent) }
 <dialog id="cmpDlg" aria-labelledby="cmpTitle"><div class="dlghead"><h2 id="cmpTitle">Compare</h2><button class="more" id="cmpClose">Close</button></div><div id="cmpBody" class="tbl-wrap"></div></dialog>
 
 <script>
+const CAT_ICON = { rosin: '🍯', flower: '🌿', preroll: '🚬', vape: '💨', concentrate: '💎', edible: '🍬' };
 const CATS = { rosin: 'Rosin & hash', flower: 'Flower', concentrate: 'Other concentrates', vape: 'Vapes', preroll: 'Pre-rolls', edible: 'Edibles & other' };
 const S = { sort: 'value', q: '', cats: new Set(Object.keys(CATS)), tiers: new Set(['S', 'A', 'B', 'P']), vendor: '', instock: true, hm: false, sized: true, starred: false, moved: false, codes: true, shipsMe: true, scope: 'online', moods: new Set(), strain: '', limit: 60, open: new Set(), compare: new Set(), mode: '' };
 let D = null, V = {}, G = {};
@@ -629,7 +632,7 @@ function render() {
     const dw = dealWord(dr(i));
     return `<div class="entry c-${i.category}"><div class="item">
       <div class="lead"><span class="rank" aria-label="Rank ${n + 1}">${n + 1}</span><button class="star" data-star="${esc(i.id)}" aria-pressed="${starred}" aria-label="${starred ? 'Unstar' : 'Star'} ${esc(i.title)}">${starred ? '★' : '☆'}</button><input type="checkbox" class="cmpbox" data-cmp="${esc(i.id)}" ${S.compare.has(i.id) ? 'checked' : ''} aria-label="Compare ${esc(i.title)}" title="Compare"></div>
-      ${i.image ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" tabindex="-1"><img class="thumb" loading="lazy" decoding="async" width="56" height="56" referrerpolicy="no-referrer" src="${esc(thumb(i.image))}" data-full="${esc(i.image)}" alt="${esc(i.title)}" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb'}))}"></a>` : '<div class="thumb"></div>'}
+      ${i.image ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" tabindex="-1"><img class="thumb" loading="lazy" decoding="async" width="56" height="56" referrerpolicy="no-referrer" src="${esc(thumb(i.image))}" data-full="${esc(i.image)}" alt="${esc(i.title)}" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb'}))}"></a>` : `<div class="thumb ph c-${i.category}" aria-hidden="true">${CAT_ICON[i.category] || '🌿'}</div>`}
       <div class="name">
         <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a>
         <div class="where"><span class="pill ${tierCls(i.tier)}">${i.local ? 'Local' : esc(i.tier)}</span>${esc(v.name || i.vendorId)} · ${CATS[i.category]}${i.strainType ? ` · ${esc(i.strainType)}` : ''}</div>
@@ -1014,10 +1017,10 @@ function useData(d) {
 // Open instantly from the copy saved on this device, then swap in the fresh list when it arrives.
 (async () => {
   let shown = null;
-  try { const hit = await caches.match('data.json', { ignoreSearch: true }); if (hit) { useData(await hit.json()); shown = D.generatedAt; } } catch {}
+  try { const hit = await caches.match('data.json', { ignoreSearch: true }); if (hit) { shown = await hit.text(); useData(JSON.parse(shown)); } } catch { shown = null; }
   try {
-    const d = await fetch('data.json', { cache: 'no-cache' }).then((r) => r.json());
-    if (d.generatedAt !== shown) useData(d);
+    const txt = await fetch('data.json', { cache: 'no-cache' }).then((r) => r.text());
+    if (txt !== shown) useData(JSON.parse(txt));
   } catch {
     if (!shown) $('#list').innerHTML = '<div class="empty">Couldn\'t load the product list. Check your connection and reload.</div>';
   }

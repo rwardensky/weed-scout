@@ -28,6 +28,6 @@
     {"id": "wnc", "name": "WNC CBD", "url": "https://wnc-cbd.com", "tier": "B", "platform": "jsonld", "reddit": ["wnc cbd", "wnc-cbd"]},
     {"id": "phc", "name": "Preston Herb Co", "url": "https://www.prestonherbco.com", "tier": "B", "platform": "jsonld", "reddit": ["preston herb", "phc"]},
     {"id": "arete", "name": "Arete", "url": "https://arete.shop", "tier": "B", "platform": "jsonld", "reddit": ["arete"]},
-    {"id": "legendary", "name": "Leet Legendary Hemp", "url": "https://legendarythcacbd.com", "tier": "D", "pinned": true, "platform": "woo", "fetcher": "curl", "reddit": ["legendary hemp", "leet legendary", "legendarythcacbd"]}
+    {"id": "legendary", "name": "Legendary THC", "url": "https://legendarythcacbd.com", "tier": "D", "pinned": true, "platform": "woo", "fetcher": "curl", "reddit": ["legendary thc", "legendary thca", "legendarythcacbd"]}
   ]
 }

@@ -437,6 +437,23 @@ async function addPageReviews(v, items) {
     if (c?.coa && !i.coa) i.coa = c.coa;
   }
 }
+// Some stores leave the photo off a product in their catalog feed (Legendary's mix-and-match bundles)
+// but still show one on the product page; read it from there. Cached for a week.
+async function addPageImages(v, items) {
+  const cacheF = path.join(CACHE, `images-${v.id}.json`);
+  const cache = readJson(cacheF, {});
+  const todo = FROM_CACHE ? [] : items.filter((i) => !i.image && i.available && i.url).filter((i) => !(cache[i.id] && Date.now() - cache[i.id].t < 7 * 864e5)).slice(0, 30);
+  if (todo.length) log(`  photos: reading ${todo.length} product pages`);
+  for (const i of todo) {
+    const r = await get(i.url, { gap: 4000, tries: 2 });
+    const h = r.body || '';
+    const m = h.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i) || h.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image/i)
+      || h.match(/class="[^"]*wp-post-image[^"]*"[^>]*\bsrc="([^"]+)"/i) || h.match(/<img[^>]+\bsrc="([^"]+)"[^>]*class="[^"]*wp-post-image/i);
+    cache[i.id] = { t: Date.now(), image: m && !/placeholder|logo/i.test(m[1]) ? m[1].replace(/&amp;/g, '&') : null };
+  }
+  fs.writeFileSync(cacheF, JSON.stringify(cache));
+  for (const i of items) if (!i.image && cache[i.id]?.image) i.image = cache[i.id].image;
+}
 
 // ---------- Reddit buzz via PullPush archive ----------
 const POS = /\b(fire|gas|gassy|amazing|great|best|love|loved|legit|quality|terpy|flavorful|flavor|recommend|solid|clean|smooth|impressed|favorite|insane|loud|potent|top ?tier|s ?tier|goat|go-to|reliable|fast shipping|excellent|incredible|bomb|dank|happy)\b/gi;
@@ -772,6 +789,7 @@ async function main() {
       fs.writeFileSync(path.join(CACHE, `raw-${v.id}.json`), JSON.stringify(raw));
       vi = raw.map((p) => makeItem(v, p)).filter(Boolean);
       if (!NO_REVIEWS && v.platform === 'shopify') await addPageReviews(v, vi);
+      if (v.platform !== 'browser') await addPageImages(v, vi);
       st.count = vi.length;
       log(`  ${raw.length} products -> ${vi.length} THCa items`);
       try {
