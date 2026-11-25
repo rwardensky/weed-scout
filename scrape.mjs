@@ -170,7 +170,27 @@ function makeItem(v, p) {
     rating: p.rating ?? null, reviewCount: p.reviewCount ?? null,
     thca: potency(category, [p.title, p.desc, ...(p.tags || []), ...p.variants.map((x) => x.label)].join(' | ')),
     coa: p.coa || null,
+    ...strainInfo(`${p.title} | ${(p.tags || []).join(' ')} | ${p.desc || ''}`),
   };
+}
+// Indica / sativa / hybrid and effects, as the store describes the product (same words as Ayr's mood chips).
+const EFFECT_WORDS = {
+  relaxed: /\brelax(?:ed|ing|ation)?\b|\bmellow\b|\bunwind\b|\bchill(?:ed)?\b/i,
+  sleepy: /\bsleep(?:y)?\b|\binsomnia\b|\bsedat(?:ing|ive)\b|\bcouch[- ]?lock\b|\bnight ?time\b|\bbedtime\b/i,
+  calm: /\bcalm(?:ing)?\b|\bpeaceful\b|\bstress relief\b|\banxiety\b|\bsoothing\b/i,
+  happy: /\bhapp(?:y|iness)\b|\bgiggl(?:y|es)\b|\bcheerful\b|\bmood[- ]?(?:boost|lift)|\buplift(?:ed|ing)\b/i,
+  euphoric: /\beuphori[ac]\b|\bblissful\b/i,
+  energetic: /\benerg(?:y|etic|izing)\b|\bdaytime\b|\bwake ?(?:and|n) ?bake\b|\bactive\b/i,
+  creative: /\bcreativ(?:e|ity)\b|\bartistic\b/i,
+  focused: /\bfocus(?:ed)?\b|\bclear[- ]headed\b|\bproductiv(?:e|ity)\b/i,
+  'pain relief': /\bpain\b|\baches?\b|\binflammation\b|\bbody high\b/i,
+};
+function strainInfo(text) {
+  const t = text.slice(0, 2500);
+  const ind = /\bindica\b/i.test(t), sat = /\bsativa\b/i.test(t), hyb = /\bhybrid\b|\b50\s*\/\s*50\b/i.test(t);
+  const strainType = hyb || (ind && sat) ? (/\bindica[- ]dominant\b/i.test(t) ? 'Indica-dominant hybrid' : /\bsativa[- ]dominant\b/i.test(t) ? 'Sativa-dominant hybrid' : 'Hybrid') : ind ? 'Indica' : sat ? 'Sativa' : null;
+  const effects = Object.entries(EFFECT_WORDS).filter(([, re]) => re.test(t)).map(([k]) => k);
+  return { ...(strainType ? { strainType } : {}), ...(effects.length ? { effects } : {}) };
 }
 // THCa (or total THC) % as stated in the listing. Not read from COA PDFs; only what the store writes.
 function potency(category, text) {
@@ -279,37 +299,77 @@ function ldProducts(html) {
   }
   return out;
 }
+const THCA_URL = /thca|flower|rosin|hash|pre-?roll|smalls|diamond|badder|sauce|live|resin|jar|indoor|exotic|kief|temple|cart|vape/i;
 async function jsonld(v) {
   const urls = new Set();
-  const queue = [`${v.url}/sitemap.xml`];
-  while (queue.length && urls.size < 600) {
-    const r = await get(queue.shift(), { gap: 2000 });
-    if (!r.body) continue;
+  // sitemaps named in robots.txt first (Arete: /sitemaps/sitemap-index.xml, BigCommerce: /xmlsitemap.php), then the usual spots
+  const robots = (await get(`${v.url}/robots.txt`, { gap: 1500, tries: 2 })).body || '';
+  const fromRobots = [...robots.matchAll(/^\s*sitemap:\s*(\S+)/gim)].map((m) => m[1]);
+  const queue = [...new Set([...fromRobots, `${v.url}/sitemap.xml`, `${v.url}/sitemap_index.xml`, `${v.url}/xmlsitemap.php`])];
+  const seenMaps = new Set();
+  while (queue.length && urls.size < 1500) {
+    const sm = queue.shift(); if (seenMaps.has(sm)) continue; seenMaps.add(sm);
+    const r = await get(sm, { gap: 1500, tries: 2 });
+    if (!r.body || !/<(urlset|sitemapindex)/i.test(r.body)) continue;
     const locs = [...r.body.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map((m) => m[1].replace(/&amp;/g, '&'));
-    if (/<sitemapindex/i.test(r.body)) queue.push(...locs.filter((l) => /product|store|item|shop/i.test(l)).slice(0, 6));
+    if (/<sitemapindex/i.test(r.body)) queue.push(...locs.filter((l) => /product|store|item|shop/i.test(l) && !/categor|tag|brand/i.test(l)).slice(0, 8));
     else locs.filter((l) => /\/(product|products|product-page|shop|store)\//i.test(l)).forEach((l) => urls.add(l));
   }
   if (!urls.size) throw new Error('no product URLs in sitemap');
-  log(`  ${urls.size} product pages`);
-  const out = [];
-  for (const u of [...urls].slice(0, 400)) {
-    const r = await get(u, { gap: 2000 });
-    if (!r.body) continue;
-    for (const p of ldProducts(r.body).slice(0, 1)) {
+  // product pages are cached; each run re-reads the ones not seen for the longest (THCa-looking first),
+  // so big catalogs stay within a day or two without hundreds of page loads every refresh
+  const cacheF = path.join(CACHE, `pages-${v.id}.json`);
+  const cache = readJson(cacheF, {});
+  const all = [...urls].sort((a, b) => THCA_URL.test(b) - THCA_URL.test(a));
+  const relevant = all.filter((u) => THCA_URL.test(u)).length ? all.filter((u) => THCA_URL.test(u)) : all;
+  const stale = relevant.filter((u) => !cache[u] || Date.now() - cache[u].t > 36 * 3600e3).sort((a, b) => (cache[a]?.t || 0) - (cache[b]?.t || 0));
+  const budget = FROM_CACHE ? 0 : Object.keys(cache).length ? 180 : 320;
+  log(`  ${urls.size} product pages (${relevant.length} look like THCa); reading ${Math.min(budget, stale.length)} new or stale`);
+  for (const u of stale.slice(0, budget)) {
+    const r = await get(u, { gap: 1500, tries: 2 });
+    if (r.body) cache[u] = { t: Date.now(), p: pageProduct(r.body, u) };
+  }
+  for (const u of Object.keys(cache)) if (!urls.has(u)) delete cache[u]; // dropped from the store
+  fs.writeFileSync(cacheF, JSON.stringify(cache));
+  return relevant.map((u) => cache[u]?.p).filter(Boolean);
+}
+// BigCommerce (WNC) leaves prices out of its structured data but embeds them in BCData: the price range
+// (cheapest = smallest size, dearest = largest) and which size options are in stock.
+function bigCommerceVariants(body) {
+  const m = body.match(/var BCData = (\{[\s\S]*?\});\s*(?:<\/script>|var |\n)/);
+  let bc; try { bc = JSON.parse(m[1]).product_attributes; } catch { return null; }
+  const range = bc?.price?.price_range, base = bc?.price?.without_tax?.value;
+  const opts = [...body.matchAll(/data-product-attribute-value="(\d+)"[\s\S]{0,400}?form-option-variant">\s*([^<]+?)\s*</g)].map((x) => ({ id: +x[1], label: x[2] }));
+  const inStock = new Set(bc.in_stock_attributes || []);
+  const avail = (o) => (o && inStock.size ? inStock.has(o.id) : !!bc.instock);
+  if (!opts.length || !range) return base ? [{ label: '', price: base, available: !!bc.instock }] : null;
+  const grams = (s) => parseGrams(s) ?? 0;
+  const sorted = [...opts].sort((a, b) => grams(a.label) - grams(b.label));
+  const lo = sorted[0], hi = sorted[sorted.length - 1];
+  const out = [{ label: lo.label, price: range.min.without_tax.value, available: avail(lo) }];
+  if (hi !== lo && range.max.without_tax.value !== range.min.without_tax.value) out.push({ label: hi.label, price: range.max.without_tax.value, available: avail(hi) });
+  return out;
+}
+function pageProduct(body, u) {
+  const r = { body };
+  for (const p of ldProducts(body).slice(0, 1)) {
+    {
       const offers = [].concat(p.offers?.offers || p.offers || []);
-      const variants = offers.length && offers[0]['@type'] !== 'AggregateOffer'
+      let variants = offers.length && offers[0]['@type'] !== 'AggregateOffer'
         ? offers.map((o) => ({ label: o.name || o.sku || '', price: +o.price || +o.lowPrice, available: !/OutOfStock|SoldOut/i.test(o.availability || '') }))
         : [{ label: '', price: +(offers[0]?.lowPrice || offers[0]?.price || 0), available: !/OutOfStock|SoldOut/i.test(offers[0]?.availability || '') }];
+      if (!variants.some((x) => x.price > 0)) variants = bigCommerceVariants(body) || variants;
+      if (/%[0-9A-F]{2}/.test(p.description || '')) { try { p.description = decodeURIComponent(p.description); } catch {} }
       const im0 = Array.isArray(p.image) ? p.image[0] : p.image;
       const img = typeof im0 === 'string' ? im0 : im0?.url || im0?.contentUrl || im0?.thumbnailUrl || null;
-      out.push({
+      return {
         handle: u.split('/').filter(Boolean).pop(), coa: extractCoa(r.body, u), title: p.name, desc: strip(p.description).slice(0, 1500), type: p.category || '', tags: [], cats: [], brand: p.brand?.name || p.brand,
         url: u, image: typeof img === 'string' ? img : null, variants,
         rating: +p.aggregateRating?.ratingValue || null, reviewCount: +(p.aggregateRating?.reviewCount || p.aggregateRating?.ratingCount) || null,
-      });
+      };
     }
   }
-  return out;
+  return null;
 }
 
 // ---------- shipping terms and promo codes, read from the store's own homepage + shipping page ----------
@@ -366,31 +426,42 @@ function findNoShip(t) {
 async function storeInfo(v, prevInfo) {
   const cacheF = path.join(CACHE, `store-${v.id}.json`);
   const cached = readJson(cacheF, null);
-  if (FROM_CACHE || v.platform === 'browser') return { ...(cached || prevInfo || {}), ...(v.shipping ? { shipping: v.shipping } : {}), ...(v.noShip ? { noShip: v.noShip } : {}) };
+  if (FROM_CACHE || v.platform === 'browser') return { ...(cached || prevInfo || {}), ...(v.shipping ? { shipping: v.shipping } : {}), ...(v.noShip ? { noShip: v.noShip } : {}), ...(v.promos ? { promos: v.promos } : {}) };
   const info = { shipping: {}, promos: [], checkedAt: new Date().toISOString() };
   const home = await get(v.url, { gap: 2500, tries: 2 });
   const ht = pageText(home.body);
   Object.assign(info.shipping, findShipping(ht));
-  info.promos = findPromos(ht);
+  info.promos = v.promos || findPromos(ht);
+  // the store's own shipping / FAQ / policy links, wherever its theme puts them
+  const policyLinks = new Set();
+  for (const m of (home.body || '').matchAll(/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]{0,120}?)<\/a>/gi)) {
+    const txt = strip(m[2]) + ' ' + m[1];
+    if (!/shipping|delivery|faq|policies|terms|refund/i.test(txt) || /instagram|facebook|twitter|tiktok|mailto:/i.test(m[1])) continue;
+    try { const u = new URL(m[1].replace(/&amp;/g, '&'), v.url); if (u.host === new URL(v.url).host) policyLinks.add(u.pathname); } catch {}
+  }
   // the store's lab-results page, if the homepage links one
   for (const m of (home.body || '').matchAll(/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]{0,200}?)<\/a>/gi)) {
     if (/\bcoas?\b|lab (?:results|reports|tests|testing)|certificates? of analysis|test results/i.test(strip(m[2]))) { try { info.labPage = new URL(m[1].replace(/&amp;/g, '&'), v.url).href; break; } catch {} }
   }
   // the shipping page rarely changes: re-read it weekly
-  if (cached?.policy && 'noShip' in cached.policy && Date.now() - new Date(cached.policy.t) < 7 * 864e5) info.policy = cached.policy;
+  if (cached?.policy?.v === 2 && Date.now() - new Date(cached.policy.t) < 7 * 864e5) info.policy = cached.policy;
   else {
-    let pol = {}; const blocked = new Set();
-    for (const p of ['/policies/shipping-policy', '/shipping-policy', '/shipping', '/pages/shipping', '/pages/faq', '/pages/faqs', '/faq', '/faqs']) {
-      const r = await get(v.url + p, { gap: 2500, tries: 1 });
+    let pol = {}; const blocked = new Set(); let pages = 0, nationwide = false;
+    const paths = [...new Set([...policyLinks].slice(0, 8).concat(['/policies/shipping-policy', '/shipping-policy', '/shipping', '/pages/shipping', '/pages/faq', '/pages/faqs', '/faq', '/faqs', '/policies/terms-of-service', '/terms-and-conditions']))].slice(0, 14);
+    for (const p of paths) {
+      const r = await get(v.url + p, { gap: 2000, tries: 1 });
       if (!r.body || !/ship/i.test(r.body)) continue;
       const t = pageText(r.body);
+      pages++;
       if (!pol.freeOver && !pol.cost) pol = findShipping(t);
+      else if (!pol.cost) { const s2 = findShipping(t); if (s2.cost) pol.cost = s2.cost; }
       for (const s of findNoShip(t)) blocked.add(s);
+      if (/\b(?:all 50 (?:us |u\.s\. )?states|nationwide|anywhere in the (?:us|u\.s\.|united states)|all (?:us|u\.s\.) states|every state)\b/i.test(t)) nationwide = true;
     }
-    info.policy = { t: new Date().toISOString(), ...pol, noShip: [...blocked].sort() };
+    info.policy = { v: 2, t: new Date().toISOString(), ...pol, noShip: [...blocked].sort(), pages, nationwide };
   }
   info.noShip = v.noShip || info.policy.noShip || [];
-  const { t: _t, noShip: _n, ...polShip } = info.policy;
+  const { t: _t, noShip: _n, v: _v, pages: _p, nationwide: _nw, ...polShip } = info.policy;
   info.shipping = { ...polShip, ...info.shipping };
   if (v.shipping) info.shipping = { ...info.shipping, ...v.shipping };
   fs.writeFileSync(cacheF, JSON.stringify(info));
@@ -437,6 +508,46 @@ async function addPageReviews(v, items) {
     if (c?.coa && !i.coa) i.coa = c.coa;
   }
 }
+// Most stores keep lab reports on one "Lab results" page, not on each product. Read that page (weekly),
+// collect every report link with the words around it, and give a product the report that names its strain.
+const LAB_FILE = /\.pdf|\.jpe?g|\.png|\.webp|drive\.google|docs\.google|kaycha|acslab|confidentcannabis|qrco\.de|cdn\.shopify\.com\/s\/files|wp-content\/uploads|lab|coa/i;
+const GENERIC_LINK = /^(?:download(?: pdf)?|view(?: coa| results?| report)?|coa|lab results?|click here|here|pdf|results?|test results?|see coa|open)$/i;
+const normLab = (s) => " " + (s || "").toLowerCase().replace(/%[0-9a-f]{2}/gi, " ").replace(/[^a-z0-9]+/g, " ").trim() + " ";
+async function addLabMatches(v, items, labPage) {
+  if (!labPage) return 0;
+  const cacheF = path.join(CACHE, `lab-${v.id}.json`);
+  let c = readJson(cacheF, null);
+  if (!c || c.page !== labPage || Date.now() - c.t > 7 * 864e5) {
+    if (FROM_CACHE) return 0;
+    const r = await get(labPage, { gap: 2500, tries: 2 });
+    const html = r.body || '';
+    const links = [];
+    for (const m of html.matchAll(/<a\b([^>]*)href=["']([^"'#]+)["']([^>]*)>([\s\S]{0,400}?)<\/a>/gi)) {
+      let href = m[2].replace(/&amp;/g, '&');
+      if (!LAB_FILE.test(href) || /\/(collections|products?|cart|account|pages\/(?!.*coa))\b/i.test(href) && !/\.pdf/i.test(href)) continue;
+      if (/drive\.google\.com\/drive\/folders/i.test(href)) continue; // a whole folder, not one report
+      try { href = new URL(href, labPage).href; } catch { continue; }
+      const text = strip(m[4]); const title = (m[1] + m[3]).match(/(?:title|aria-label)=["']([^"']+)/i)?.[1] || '';
+      // generic button text ("Download PDF") → use the words just before the link (the card's heading)
+      const before = GENERIC_LINK.test(text.trim()) || !text.trim() ? strip(html.slice(Math.max(0, m.index - 600), m.index)).slice(-140) : '';
+      const file = decodeURIComponent(href.split('?')[0].split('/').pop() || '').replace(/[_-]+/g, ' ');
+      links.push({ url: href, label: normLab(`${text} ${title} ${before} ${file}`), date: coaDate(`${file} ${text} ${title}`) });
+    }
+    c = { t: Date.now(), page: labPage, links };
+    fs.writeFileSync(cacheF, JSON.stringify(c));
+  }
+  let n = 0;
+  for (const i of items) {
+    if (i.coa) continue;
+    const key = (groupKey(i) || '').split(':')[1] || strainKey(i.title);
+    if (!key || key.replace(/ /g, '').length < 5) continue;
+    const k = normLab(key);
+    const hit = c.links.find((l) => l.label.includes(k));
+    if (hit) { i.coa = { url: hit.url, date: hit.date, fromLabPage: true }; n++; }
+  }
+  return n;
+}
+
 // Some stores leave the photo off a product in their catalog feed (Legendary's mix-and-match bundles)
 // but still show one on the product page; read it from there. Cached for a week.
 async function addPageImages(v, items) {
@@ -794,10 +905,14 @@ async function main() {
       log(`  ${raw.length} products -> ${vi.length} THCa items`);
       try {
         const info = await storeInfo(v, prev.vendors.find((x) => x.id === v.id));
-        st.shipping = info.shipping || {}; st.promos = info.promos || []; st.noShip = info.noShip || []; st.labPage = info.labPage || null;
+        st.shipping = info.shipping || {}; st.promos = info.promos || []; st.noShip = info.noShip || []; st.labPage = info.labPage || null; st.shipPolicy = info.policy ? { pages: info.policy.pages || 0, nationwide: !!info.policy.nationwide, listed: (info.noShip || []).length > 0 } : null;
         // a "COA" link shared by many products is the store's general lab page, not a per-product report
         const counts = {}; for (const i of vi) if (i.coa) counts[i.coa.url] = (counts[i.coa.url] || 0) + 1;
         for (const [u, n] of Object.entries(counts)) if (n >= 3) { st.labPage ||= u; for (const i of vi) if (i.coa?.url === u) i.coa = null; }
+        // a lab page that is a blog post or another site is not a list of reports
+        const bare = (u) => new URL(u).host.replace(/^www\./, '');
+        if (st.labPage && (/\/blogs?\//i.test(st.labPage) || (bare(st.labPage) !== bare(v.url) && !LAB_FILE.test(st.labPage)))) st.labPage = null;
+        try { const n = await addLabMatches(v, vi, st.labPage); if (n) log(`  lab page: matched ${n} products to reports`); } catch (e) { log("  lab page failed", e.message); }
         if (st.promos.length || st.shipping.freeOver) log(`  store: ${st.shipping.freeOver ? `free shipping $${st.shipping.freeOver}+` : ''} ${st.promos.map((p) => p.code || p.text).join(', ')}`);
       } catch (e) { log('  store info failed', e.message); }
     } catch (e) {
@@ -824,7 +939,9 @@ async function main() {
   fs.writeFileSync(path.join(CACHE, 'reddit.json'), JSON.stringify(redditCache));
 
   // keep vendors not scraped this run (when using --only)
-  if (ONLY) { for (const pv of prev.vendors) if (!ONLY.includes(pv.id)) vstat.push(pv); items.push(...prev.items.filter((i) => !ONLY.includes(i.vendorId))); }
+  // keep online vendors not scraped this run (local dispensaries are rebuilt below from their capture every run)
+  const localIds = new Set((cfg.local || []).map((l) => l.id));
+  if (ONLY) { for (const pv of prev.vendors) if (!ONLY.includes(pv.id) && !localIds.has(pv.id)) vstat.push(pv); items.push(...prev.items.filter((i) => !ONLY.includes(i.vendorId) && !localIds.has(i.vendorId))); }
 
   // price with shipping: the cheapest per-gram size once shipping for that order is added.
   // Unknown terms → assume $10 shipping, free at $100 (typical), and flag it as an estimate.
@@ -911,6 +1028,18 @@ async function main() {
     vstat.push(stat); items.push(...li);
     log(`== ${L.name} (local): ${li.length} products${stat.status === 'stale' ? ' (menu older than 3 days)' : ''}`);
   }
+  // online products the store doesn't describe: borrow strain type and effects from the dispensary menu's same strain
+  const known = {};
+  for (const i of items) if (i.local && (i.effects?.length || i.strainType)) { const k = (groupKey(i) || '').split(':')[1]; if (k) known[k] ||= i; }
+  let borrowed = 0;
+  for (const i of items) {
+    if (i.local) continue;
+    const k = (i.group || groupKey(i) || '').split(':')[1]; const src = k && known[k];
+    if (!src) continue;
+    if (!i.strainType && src.strainType) i.strainType = src.strainType;
+    if (!i.effects?.length && src.effects?.length) { i.effects = src.effects.slice(0, 5); i.effectsFrom = 'menu'; borrowed++; }
+  }
+  log(`strain info: ${items.filter((i) => !i.local && i.strainType).length} online products with a strain type, ${items.filter((i) => !i.local && i.effects?.length).length} with effects (${borrowed} from the dispensary menu)`);
   updateHistory(items);
   const out = { generatedAt: new Date().toISOString(), medians, vendors: vstat, items };
   fs.writeFileSync(path.join(DIR, 'data.json'), JSON.stringify(out));

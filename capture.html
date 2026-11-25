@@ -45,7 +45,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 <main>
   <div>
     <h1>Weed <span>Scout</span> capture</h1>
-    <p class="muted">Updates White Ash Reserve, Crysp and the Ayr Carytown menu from any phone or computer. Their bot checks block the daily refresh, so you open the store, then tap the bookmark.</p>
+    <p class="muted">Updates White Ash Reserve, Crysp, Hello Mary and the Ayr Carytown menu from any phone or computer. Their bot checks block the daily refresh, so you open the store, then tap the bookmark.</p>
   </div>
 
   <div class="card status-card" id="statusCard" hidden>
@@ -80,7 +80,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   <div class="card">
     <h2>3. Use it</h2>
     <ol class="muted">
-      <li>Open <a href="https://whiteashreserve.com" target="_blank" rel="noopener">White Ash Reserve</a>, <a href="https://shopcrysp.com" target="_blank" rel="noopener">Crysp</a>, or the <a href="https://dutchie.com/embedded-menu/ayr-va-carytown" target="_blank" rel="noopener">Ayr Carytown menu</a> and get past any security check.</li>
+      <li>Open <a href="https://whiteashreserve.com" target="_blank" rel="noopener">White Ash Reserve</a>, <a href="https://shopcrysp.com" target="_blank" rel="noopener">Crysp</a>, <a href="https://shophellomary.com/shop/" target="_blank" rel="noopener">Hello Mary</a>, or the <a href="https://dutchie.com/embedded-menu/ayr-va-carytown" target="_blank" rel="noopener">Ayr Carytown menu</a> and get past any security check.</li>
       <li>Tap the <b>Weed Scout capture</b> bookmark. On Android Chrome, type "Weed Scout capture" in the address bar and pick the bookmark.</li>
       <li>This page opens, uploads the catalog, and the site refreshes in about an hour.</li>
     </ol>
@@ -89,8 +89,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 
 <script>
 const REPO = 'rwardensky/weed-scout', BRANCH = 'main';
-const STORES = { 'https://whiteashreserve.com': 'war', 'https://www.whiteashreserve.com': 'war', 'https://shopcrysp.com': 'crysp', 'https://www.shopcrysp.com': 'crysp', 'https://dutchie.com': 'ayr' };
-const NAMES = { war: 'White Ash Reserve', crysp: 'Crysp', ayr: 'Ayr Carytown' };
+const STORES = { 'https://whiteashreserve.com': 'war', 'https://www.whiteashreserve.com': 'war', 'https://shopcrysp.com': 'crysp', 'https://www.shopcrysp.com': 'crysp', 'https://shophellomary.com': 'hellomary', 'https://www.shophellomary.com': 'hellomary', 'https://dutchie.com': 'ayr' };
+const NAMES = { war: 'White Ash Reserve', crysp: 'Crysp', hellomary: 'Hello Mary', ayr: 'Ayr Carytown' };
 const FILE = (id) => (id === 'ayr' ? 'captures/local-ayr.json' : `captures/browser-${id}.json`);
 const $ = (s) => document.querySelector(s);
 const store = { get: () => { try { return localStorage.getItem('ws-token') || ''; } catch { return ''; } },

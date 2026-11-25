@@ -31,6 +31,8 @@ const events = [];
 const add = (key, ev) => { if (!state.sent[key]) events.push({ key, ...ev }); };
 const items = new Set(watch.items || []);
 const strains = new Set(watch.strains || []);
+const makers = new Set((watch.makers || []).map((m) => m.toLowerCase()));
+const stores = new Set(watch.stores || []);
 const targets = watch.targets || {};
 const ratings = watch.ratings || {};
 const purchases = watch.purchases || [];
@@ -57,6 +59,10 @@ for (const i of data.items) {
     if (starred && i.low30 && i.available) add(`low:${i.id}:${i.effPpg}`, { prio: 3, tag: 'moneybag', title: 'Lowest price in 30 days', body: `${i.title} at ${where}: ${ppg(i)}`, url: i.url });
     if (strainHit && !starred && i.isNew && i.available) add(`new:${i.id}`, { prio: 3, tag: 'seedling', title: 'Watched strain just listed', body: `${i.title} at ${where}: ${ppg(i)}`, url: i.url });
   }
+  // a hashmaker or store you follow listed something new
+  const mk = (i.hashmaker || i.thirdParty || "").toLowerCase();
+  if (i.isNew && recent(i.isNew, 1) && i.available && !starred && !strainHit && (makers.has(mk) || stores.has(i.vendorId)))
+    add(`follow:${i.id}`, { prio: 3, tag: "sparkles", title: makers.has(mk) ? `New from ${i.hashmaker || i.thirdParty}` : `New at ${where}`, body: `${i.title}${makers.has(mk) ? ` at ${where}` : ""}: ${ppg(i)}`, url: i.url });
   // big deals worth knowing about even if not starred
   const topTier = ['S', 'A+', 'A'].includes(i.tier);
   if (topTier && i.available && ratings[i.id]?.r !== -1 && i.dealRatio >= 1.43 && i.quality >= 60 && ((i.isNew && recent(i.isNew, 1)) || (i.drop && recent(i.drop.at, 1))))
@@ -99,7 +105,7 @@ if (toSend.length > 6) {
 }
 
 const html = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-const EMOJI = { chart_with_downwards_trend: '📉', package: '📦', moneybag: '💰', seedling: '🌱', fire: '🔥', bell: '🔔', white_check_mark: '✅', dart: '🎯', hourglass: '⏳', calendar: '📅' };
+const EMOJI = { chart_with_downwards_trend: '📉', package: '📦', moneybag: '💰', seedling: '🌱', fire: '🔥', bell: '🔔', white_check_mark: '✅', dart: '🎯', hourglass: '⏳', calendar: '📅', sparkles: '✨' };
 async function send(e) {
   if (DRY || !TOPIC) { console.log(`[${DRY ? 'dry-run' : 'no alert channel set'}] ${e.title} | ${e.body}`); return true; }
   if (TOPIC === 'telegram') {

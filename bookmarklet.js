@@ -5,8 +5,8 @@
 (async () => {
   const SITE = 'https://rwardensky.github.io';
   const host = location.hostname.replace(/^www\./, '');
-  const id = host === 'dutchie.com' && /ayr-va-carytown/.test(location.pathname) ? 'ayr' : { 'whiteashreserve.com': 'war', 'shopcrysp.com': 'crysp' }[host];
-  if (!id) { alert('Weed Scout: open White Ash Reserve, Crysp, or the Ayr Carytown menu on dutchie.com first, then tap this bookmark.'); return; }
+  const id = host === 'dutchie.com' && /ayr-va-carytown/.test(location.pathname) ? 'ayr' : { 'whiteashreserve.com': 'war', 'shopcrysp.com': 'crysp', 'shophellomary.com': 'hellomary' }[host];
+  if (!id) { alert('Weed Scout: open White Ash Reserve, Crysp, Hello Mary, or the Ayr Carytown menu on dutchie.com first, then tap this bookmark.'); return; }
   // Open the upload page now, while the tap still counts as a click (later would be popup-blocked).
   const win = window.open(SITE + '/weed-scout/capture.html', 'weedscout-capture');
   if (!win) { alert('Weed Scout: allow pop-ups for this site, then tap the bookmark again.'); return; }
