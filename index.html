@@ -86,6 +86,12 @@ main { padding-block: 18px 40px; display: flex; flex-direction: column; gap: 28p
 .linkbtn { font: 500 12px var(--body); color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px }
 .num { font: 500 15px var(--mono); font-variant-numeric: tabular-nums; text-align: right }
 .num small { display: block; font: 12px var(--body); color: var(--muted) }
+.num small b { color: var(--fg); font-weight: 600 }
+.rq { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--line); font-size: 13px; line-height: 1.4 }
+.rq.pos { border-left-color: var(--good) } .rq.neg { border-left-color: var(--bad) }
+.rq cite { display: block; font-style: normal; font-size: 12px; color: var(--muted); margin-top: 3px }
+.rtag { border: 0; cursor: pointer; font-family: inherit } .rtag.pos { color: var(--good) } .rtag.neg { color: var(--bad) }
+.details th { text-align: left; font-weight: 500 } .details th.n { text-align: right }
 .deal { font: 600 13px var(--mono); padding: 2px 8px; border-radius: 6px; display: inline-block }
 .deal.good { background: var(--good-soft); color: var(--good) } .deal.bad { background: var(--bad-soft); color: var(--bad) } .deal.even { background: var(--sunk); color: var(--muted) }
 .q { display: flex; flex-direction: column; align-items: flex-end; gap: 4px }
@@ -181,6 +187,7 @@ details summary { cursor: pointer; color: var(--accent) }
         <button data-v="deal" aria-pressed="false">Best deal</button>
         <button data-v="quality" aria-pressed="false">Best rated</button>
         <button data-v="ppg" aria-pressed="false">Lowest $/g</button>
+        <button data-v="total" aria-pressed="false">Lowest total</button>
         <button data-v="thc" aria-pressed="false">Most THCa per $</button>
         <button data-v="moves" aria-pressed="false">Newest changes</button>
       </div>
@@ -269,6 +276,7 @@ const save = () => ls.set('scout', { sort: S.sort, cats: [...S.cats], codes: S.c
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = (n) => n == null ? '—' : '$' + (n >= 100 ? Math.round(n) : n.toFixed(2));
+const monthYear = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 const shortDate = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // smaller image sizes: Shopify CDN takes ?width=, WordPress keeps -300x300 copies
 function thumb(u) {
@@ -404,6 +412,7 @@ const sorters = {
   deal: (a, b) => (dr(b) ?? 0) - (dr(a) ?? 0),
   quality: (a, b) => myQ(b) - myQ(a) || (dr(b) ?? 0) - (dr(a) ?? 0),
   ppg: (a, b) => (pp(a) ?? 1e9) - (pp(b) ?? 1e9),
+  total: (a, b) => (total(a) ?? 1e9) - (total(b) ?? 1e9) || (pp(a) ?? 1e9) - (pp(b) ?? 1e9),
   thc: (a, b) => (mgPer$(b) ?? -1) - (mgPer$(a) ?? -1) || (myV(b) ?? 0) - (myV(a) ?? 0),
   moves: (a, b) => moveDate(b).localeCompare(moveDate(a)) || (b.drop?.pct ?? 0) - (a.drop?.pct ?? 0) || (myV(b) ?? 0) - (myV(a) ?? 0),
 };
@@ -421,18 +430,35 @@ function moveTags(i) {
   if (i.isNew) t.push(`<span class="tag move">New ${shortDate(i.isNew)}</span>`);
   return t.join('');
 }
+// Shipping for one order at a store: its published terms, else the usual $10, free over $100 (estimated).
+function shipFor(vendorId, price) {
+  const sh = V[vendorId]?.shipping || {};
+  const known = sh.freeOver != null || sh.cost != null;
+  const freeOver = known ? sh.freeOver : 100, cost = sh.cost ?? 10;
+  return freeOver != null && price >= freeOver ? 0 : cost;
+}
+// What you'd pay at checkout for the size the $/g is based on: price + shipping (− promo code when on).
+function total(i) {
+  if (i.local) return i.bestPpgPrice ?? i.minPrice;
+  if (!i.effPpg) return i.minPrice != null ? i.minPrice + shipFor(i.vendorId, i.minPrice) : null;
+  if (S.codes && i.codePpg && i.effGrams) return Math.round(i.codePpg * i.effGrams * 100) / 100;
+  return i.shipPrice ?? i.bestPpgPrice;
+}
+const cents = (n) => n == null ? '—' : '$' + (Number.isInteger(n) ? n : n.toFixed(2));
 function priceCell(i) {
   if (i.local) {
     const d = V[i.vendorId]?.discount;
     const top = i.effPpg ? `${money(i.effPpg)}/g` : money(i.minPrice);
-    return `<div class="num">${top}<small>${i.effGrams ? i.effGrams + 'g · ' : ''}in store${d ? `, with ${d.pct}% ${esc(d.label)}` : ''}</small></div>`;
+    return `<div class="num">${top}<small><b>${cents(total(i))} total</b>${i.effGrams ? ' · ' + i.effGrams + 'g' : ''}</small><small>in store${d ? `, with ${d.pct}% ${esc(d.label)}` : ''}</small></div>`;
   }
-  if (!i.effPpg) return `<div class="num">${money(i.minPrice)}<small>from, no weight listed</small></div>`;
-  const ship = i.shipPpg ? (i.shipFree ? 'free shipping' : `with ${i.shipEstimated ? 'est. ' : ''}shipping`) : 'before shipping';
+  if (!i.effPpg) return `<div class="num">${money(i.minPrice)}<small><b>~${cents(total(i))} total</b> with shipping</small><small>no weight listed</small></div>`;
+  const shipVar = i.variants.find((x) => x.label === i.shipLabel);
+  const shipCost = i.shipPrice != null && shipVar ? +(i.shipPrice - shipVar.price).toFixed(2) : null;
+  const ship = i.shipPpg ? (i.shipFree ? 'free shipping' : `incl. ${i.shipEstimated ? 'est. ' : ''}${cents(shipCost)} shipping`) : 'before shipping';
   const size = i.effGrams ? `${i.effGrams}g${i.weightAssumed ? ' (assumed)' : ''}` : '';
   const coded = S.codes && i.codePpg;
-  const code = coded ? `<small class="codeline">${i.code ? `code <code class="promo">${esc(i.code)}</code>` : 'sale'} −${i.codePct}%, was ${money(i.effPpg)}</small>` : '';
-  return `<div class="num" title="Sticker ${money(i.bestPpg)}/g">${money(pp(i))}/g<small>${size}${size ? ' · ' : ''}${ship}</small>${code}</div>`;
+  const code = coded ? `<small class="codeline">${i.code ? `code <code class="promo">${esc(i.code)}</code>` : 'sale'} −${i.codePct}%, was ${money(i.effPpg)}/g</small>` : '';
+  return `<div class="num" title="Sticker ${money(i.bestPpg)}/g">${money(pp(i))}/g<small><b>${cents(total(i))} total</b>${size ? ' · ' + size : ''}</small><small>${ship}</small>${code}</div>`;
 }
 function others(i) {
   if (!i.group) return [];
@@ -458,7 +484,17 @@ function detailsHtml(i) {
     const r = bySize.get(k) || { label: x.grams ? `${x.grams}g${x.assumed ? ' (assumed)' : ''}` : x.label, price: x.price, ppg: x.ppg, n: 0, inStock: 0 };
     r.n++; if (x.available) r.inStock++; bySize.set(k, r);
   }
-  const sizes = [...bySize.values()].sort((a, b) => a.price - b.price).slice(0, 8).map((r) => `<tr><td>${esc(r.label)}${r.n > 1 ? ` <span class="note">${r.inStock}/${r.n} flavors in stock</span>` : r.inStock ? '' : ' <span class="tag oos">sold out</span>'}</td><td class="n">${money(r.price)}</td><td class="n">${r.ppg ? money(r.ppg) + '/g' : '—'}</td></tr>`).join('');
+  const sizes = `<tr class="note"><th>Size</th><th class="n">Price</th><th class="n">${i.local ? 'You pay' : 'With shipping'}</th><th class="n">$/g</th></tr>` + [...bySize.values()].sort((a, b) => a.price - b.price).slice(0, 8).map((r) => {
+    const tot = Number(r.price) + (i.local ? 0 : Number(shipFor(i.vendorId, r.price)) || 0);
+    const g = r.ppg ? r.price / r.ppg : null;
+    return `<tr><td>${esc(r.label)}${r.n > 1 ? ` <span class="note">${r.inStock}/${r.n} flavors in stock</span>` : r.inStock ? '' : ' <span class="tag oos">sold out</span>'}</td><td class="n">${cents(r.price)}</td><td class="n"><b>${cents(+tot.toFixed(2))}</b></td><td class="n">${g ? money(tot / g) + '/g' : '—'}</td></tr>`;
+  }).join('');
+  const rs = i.redditSays || [];
+  const reddit = `<div><h3>What Reddit says</h3>${rs.length
+    ? `<p class="note">${i.redditMentions} post${i.redditMentions > 1 ? 's' : ''} name this strain${i.hashmaker ? ` (with ${esc(V[i.vendorId]?.name || '')} or ${esc(i.hashmaker)})` : ` with ${esc(V[i.vendorId]?.name || '')}`}.</p>` +
+      rs.map((q) => `<blockquote class="rq ${q.sent > 0.1 ? 'pos' : q.sent < -0.1 ? 'neg' : ''}">“${esc(q.text)}”<cite><a href="${esc(q.link)}" target="_blank" rel="noopener">r/${esc(q.sub)}</a> · ${monthYear(q.t)}${q.score > 1 ? ` · ${q.score} upvotes` : ''}</cite></blockquote>`).join('')
+    : `<p class="note">No Reddit posts about this exact product in the last year.${V[i.vendorId]?.reddit?.mentions ? ` ${esc(V[i.vendorId].name)} itself comes up ${V[i.vendorId].reddit.mentions}×; see the vendor table.` : ''}</p>`}
+    <a class="note" href="https://www.reddit.com/search/?q=${encodeURIComponent(`"${(i.group || '').split(':')[1] || i.title}" ${V[i.vendorId]?.name || ''}`)}" target="_blank" rel="noopener">Search Reddit for more ↗</a></div>`;
   const hist = spark(i.hist);
   const alts = others(i).sort((a, b) => (a.effPpg ?? 1e9) - (b.effPpg ?? 1e9)).slice(0, 8);
   const vs = i.vsOnline ? Math.round((1 - 1 / i.vsOnline) * 100) : null;
@@ -491,6 +527,7 @@ function detailsHtml(i) {
     <div><h3>Price history</h3>${hist || `<p class="note">Tracking since ${i.firstSeen ? shortDate(i.firstSeen) : 'today'}; no change yet.</p>`}</div>
     <div><h3>Same strain elsewhere</h3>${alts.length ? alts.map((a) => `<div class="alt"><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(V[a.vendorId]?.name || a.vendorId)} <span class="pill ${tierCls(a.tier)}">${esc(a.tier)}</span></a><span>${a.effPpg ? money(a.effPpg) + '/g' : money(a.minPrice)}</span></div>`).join('') : '<p class="note">Not listed at other tracked vendors right now.</p>'}
       ${i.group ? `<button class="watchbtn" data-strain="${esc(i.group)}" aria-pressed="${W.strains.has(i.group)}">${W.strains.has(i.group) ? '★ Watching this strain' : '☆ Watch this strain'}</button>` : ''}</div>
+    ${i.local ? '' : reddit}
   </div>`;
 }
 function render() {
@@ -502,7 +539,7 @@ function render() {
     const v = V[i.vendorId] || {};
     const maker = i.hashmaker || i.thirdParty;
     const rating = i.rating ? `★ ${i.rating.toFixed(1)} (${i.reviewCount})` : '';
-    const rd = i.redditMentions ? `<a href="${esc(i.redditLinks?.[0])}" target="_blank" rel="noopener" class="tag" style="text-decoration:none;color:inherit">Reddit ×${i.redditMentions}</a>` : '';
+    const rd = i.redditSays?.length ? `<button class="tag rtag ${i.redditSent > 0.1 ? 'pos' : i.redditSent < -0.1 ? 'neg' : ''}" data-open="${esc(i.id)}" title="What Reddit says">💬 Reddit ×${i.redditMentions}</button>` : '';
     const alts = others(i);
     const cheaper = alts.filter((a) => a.effPpg && i.effPpg && a.effPpg < i.effPpg).length;
     const open = S.open.has(i.id);

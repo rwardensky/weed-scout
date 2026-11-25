@@ -522,6 +522,45 @@ async function reddit(v) {
     _docs: list,
   };
 }
+// What Reddit says about one product: posts that name the strain and either this vendor or the
+// product's hashmaker (the same jar is sold by several shops). Keeps the sentences that name the strain.
+const STRAIN_WORDS = /^(og|kush|gelato|runtz|cake|zkittlez|haze|cookies|diesel|purple|lemon|cherry|grape|mango|candy|sherbet|sorbet|banana|blue dream|sour|mints?|sundae|pie|punch|z|rs11|apple|gas|tropical)$/;
+function productReddit(i, vendorDocs, v) {
+  delete i.redditMentions; delete i.redditSent; delete i.redditLinks; delete i.redditSays;
+  const k = (groupKey(i) || '').split(':')[1] || strainKey(i.title);
+  // keys left over from format or line names ("flavor pack", "everyday indoor", "cured badder") aren't strains
+  if (/\b(flavor|pack|vape|pen|sampler|bundle|seed junky|everyday|budget|premium|private|in house|cured|badder|explore)\b/.test(k || '')) return;
+  if (!k || k.replace(/ /g, '').length < 5 || STRAIN_WORDS.test(k)) return;
+  // the store's own name isn't a strain ("Daily Hi - Live Rosin")
+  const flat = (x) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if ([v.name, ...(v.reddit || [])].some((n) => flat(n).includes(flat(k)) || flat(k).includes(flat(n)))) return;
+  const re = new RegExp(`\\b${reEsc(k).replace(/ /g, '[\\s-]*')}\\b`, 'i');
+  const maker = i.hashmaker && i.hashmaker.length >= 4 ? new RegExp(`\\b${reEsc(i.hashmaker).replace(/ /g, '\\s*')}\\b`, 'i') : null;
+  const seen = new Set();
+  const docs = [...vendorDocs, ...(maker ? CORPUS.filter((d) => maker.test(d.text)) : [])]
+    .filter((d) => { if (seen.has(d.link) || !re.test(d.text)) return false; seen.add(d.link); return true; });
+  if (!docs.length) return;
+  const quotes = [];
+  for (const d of docs) {
+    const sents = d.text.split(/(?<=[.!?])\s+|\n+/);
+    sents.forEach((x, n) => {
+      if (!re.test(x)) return;
+      let q = strip(x);
+      if (q.length < 60 && sents[n + 1]) q = (q + ' ' + strip(sents[n + 1])).trim();
+      if (q.length < 20) return;
+      if (q.length > 280) q = q.slice(0, 277).replace(/\s+\S*$/, '') + '…';
+      quotes.push({ text: q, sent: +sentScore(q).s.toFixed(2), score: d.score, link: d.link, sub: d.sub, t: d.t });
+    });
+  }
+  // opinions first (either way), then upvotes, then newest; one quote per thread
+  const pickd = new Set();
+  const says = quotes.sort((a, b) => (Math.abs(b.sent) >= 0.2) - (Math.abs(a.sent) >= 0.2) || b.score - a.score || b.t - a.t)
+    .filter((q) => { if (pickd.has(q.link)) return false; pickd.add(q.link); return true; }).slice(0, 4)
+    .map((q) => ({ ...q, t: new Date(q.t * 1000).toISOString().slice(0, 10) }));
+  const sent = quotes.length ? quotes.reduce((a, q) => a + q.sent, 0) / quotes.length : 0;
+  i.redditMentions = docs.length; i.redditSent = +sent.toFixed(2); i.redditLinks = docs.slice(0, 3).map((d) => d.link);
+  i.redditSays = says;
+}
 const GENERIC = /\b(thca|hash|rosin|live|cold|cure|fresh|press|badder|batter|jam|sauce|diamonds?|flower|indoor|exotic|premium|tier|\d+(\.\d+)?\s*g|grams?|oz|eighth|cart|vape|disposable|pre-?rolls?|the|and|by|x|in-house|small batch|solventless|full melt|bubble|hash rosin|resin|sugar|smalls|1st|2nd|press)\b/gi;
 function strainKey(title) {
   const k = title.toLowerCase().replace(/[|•–—:()[\]]/g, ' ').replace(GENERIC, ' ').replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -752,13 +791,7 @@ async function main() {
     if (!NO_REDDIT) {
       try {
         const rb = await reddit(v);
-        const keys = new Map();
-        for (const i of vi) { const k = strainKey(i.title); if (k) keys.set(i.id, k); }
-        for (const i of vi) {
-          const k = keys.get(i.id); if (!k) continue;
-          const hits = rb._docs.filter((d) => d.text.toLowerCase().includes(k));
-          if (hits.length) { i.redditMentions = hits.length; i.redditSent = +(hits.reduce((s, d) => s + d.sent, 0) / hits.length).toFixed(2); i.redditLinks = hits.slice(0, 3).map((d) => d.link); }
-        }
+        for (const i of vi) productReddit(i, rb._docs, v);
         delete rb._docs;
         redditCache[v.id] = { ...rb, t: Date.now() };
         log(`  reddit: ${rb.mentions} mentions, sentiment ${rb.sentiment}`);
