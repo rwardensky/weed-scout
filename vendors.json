@@ -1,6 +1,6 @@
 {
   "_notes": "tier: S | A+ | A | B. platform: shopify | woo | jsonld (sitemap + JSON-LD product pages) | blocked (Cloudflare challenge; needs a real browser). reddit: search terms for buzz.",
-  "redditSubs": ["THCaFlower", "hashrosin", "hempflowers"],
+  "redditSubs": ["THCaFlower", "THCAextracts", "hashrosin", "hempflowers"],
   "local": [{"id": "ayr", "name": "Ayr Carytown", "place": "Richmond, VA (medical)", "url": "https://dutchie.com/embedded-menu/ayr-va-carytown", "discount": {"pct": 10, "label": "veteran discount"}}],
   "solventlessBrands": ["Humboldt Organic Collective", "Beachside Solventless", "Puffin Solventless", "Happy Hash Cat", "Cold Water Chemist", "Moonshine Melts", "Professor Sift", "Trichadelics", "Dammit Bobby", "Farming Stoned", "Sugar Magnolia", "Hand Made Hash", "RCC", "Uncle's Farm", "Ogre Farms"],
   "hashmakers": ["710 Labs", "The Bryantist", "Bryantist", "Hash Rosin Company", "Hash Rosin Co", "(HRC)", "Quasi Pharms", "Locked In", "710 Flower", "Stayfly", "Puffin", "Rosintech", "Nicot", "Coffee and Donuts", "Coffee & Donuts", "Papa's Select", "Lavender Farms", "Ethos", "Kalifornia Kollective", "Moxie", "Dablogic", "Hellavated"],

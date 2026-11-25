@@ -455,7 +455,7 @@ async function buildCorpus() {
       const floor = Math.max(now - (kind === 'posts' ? 365 : 90) * 86400, c.newest[key] || 0);
       const fields = kind === 'posts' ? 'id,title,selftext,created_utc,score,subreddit' : 'id,body,created_utc,score,link_id,subreddit';
       let before = now, newest = c.newest[key] || 0, n = 0, complete = false;
-      for (let page = 0; page < 80; page++) {
+      for (let page = 0; page < 200; page++) {
         let r;
         for (let t = 0; t < 4; t++) {
           r = await get(`https://arctic-shift.photon-reddit.com/api/${kind}/search?subreddit=${sub}&after=${floor}&before=${before}&limit=100&sort=desc&fields=${fields}`, { json: true, gap: 1200 });
