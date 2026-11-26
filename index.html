@@ -135,8 +135,18 @@ main { padding-block: 18px 56px; display: flex; flex-direction: column; gap: 36p
 input[type=number] { width: 90px; font: 14px var(--body); color: var(--fg); background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 7px 8px }
 /* order planner */
 .planner { background: linear-gradient(135deg, #fff 0%, #fff4e4 100%); border: 2px solid #ffd9b8; border-radius: 22px; padding: 18px; box-shadow: var(--shadow) }
-.planhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 12px }
-.planhead h2 { margin: 0 }
+.planhead { margin: 0 0 12px }
+.planhead button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding-right: 40px; position: relative; border-radius: 12px }
+.planhead button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 4px }
+.plantitle { font: 600 22px var(--display); color: var(--fg) }
+.planhead .note { font: 400 13px var(--body) }
+.chev { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--line); font-size: 15px; color: var(--muted); transition: transform .2s }
+.planner.closed { padding-block: 12px }
+.planner.closed .planhead { margin: 0 }
+.planner.closed .chev { transform: translateY(-50%) rotate(-90deg) }
+.planner.closed #planBody { display: none }
+.planner.closed .planhead .note { display: none }
+.planner.closed .planhead button::after { content: "Tap to plan a budget order"; font: 400 13px var(--body); color: var(--muted) }
 .planform { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: flex-end }
 .field { display: flex; flex-direction: column; gap: 6px }
 .field > span:first-child { font-size: 12px; font-weight: 700; color: var(--muted) }
@@ -308,7 +318,8 @@ details summary { cursor: pointer; color: var(--accent) }
 
 <main class="wrap">
   <section id="cartsec" class="planner">
-    <div class="planhead"><h2>🛒 Plan an order</h2><span class="note">Say what you want to spend and what you're after. It builds orders from the best deals, with shipping and promo codes counted.</span></div>
+    <h2 class="planhead"><button type="button" id="planToggle" aria-expanded="true" aria-controls="planBody"><span class="plantitle">🛒 Plan an order</span><span class="note">Say what you want to spend and what you're after. It builds orders from the best deals, with shipping and promo codes counted.</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+    <div id="planBody">
     <div class="planform">
       <label class="field"><span>Spend up to</span><span class="money-in">$<input id="cartBudget" type="number" min="10" step="5" value="150" inputmode="numeric" aria-label="Budget in dollars"></span></label>
       <div class="field"><span>I want</span><div class="row" id="planCats">
@@ -331,6 +342,7 @@ details summary { cursor: pointer; color: var(--accent) }
       <div class="field"><span>&nbsp;</span><div class="row"><button class="chip" id="cartMine" aria-pressed="false">Only my list</button><button class="go" id="cartGo">Build my order</button></div></div>
     </div>
     <div id="cartOut"></div>
+    </div>
   </section>
   <section>
     <div id="syncnote"></div>
@@ -1188,6 +1200,12 @@ function useData(d) {
   }
 })();
 loadRemoteWatch();
+// order planner folds away; remembers how you left it (starts folded so the deals list comes first)
+{ const sec = $('#cartsec'), btn = $('#planToggle');
+  const set = (open) => { sec.classList.toggle('closed', !open); btn.setAttribute('aria-expanded', open); try { localStorage.setItem('ws-plan-open', open ? '1' : '0'); } catch {} };
+  let open = false; try { open = localStorage.getItem('ws-plan-open') === '1'; } catch {}
+  set(open);
+  btn.onclick = () => { const o = sec.classList.contains('closed'); set(o); if (o) $('#cartBudget').focus({ preventScroll: true }); }; }
 { const tb = $('#themeBtn'); const sync = () => { const n = document.documentElement.dataset.theme === 'night'; tb.textContent = n ? '☀️' : '🌙'; tb.setAttribute('aria-label', n ? 'Day mode' : 'Night mode'); tb.title = tb.getAttribute('aria-label'); document.querySelector('meta[name=theme-color]').content = n ? '#1d6b4f' : '#2f9e6a'; };
   tb.onclick = () => { const n = document.documentElement.dataset.theme !== 'night'; if (n) document.documentElement.dataset.theme = 'night'; else delete document.documentElement.dataset.theme; try { localStorage.setItem('ws-theme', n ? 'night' : 'day'); } catch {} sync(); };
   sync(); }
