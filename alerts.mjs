@@ -24,7 +24,38 @@ const state = read('alerts-state.json', { sent: {} });
 const today = new Date().toISOString().slice(0, 10);
 const vname = Object.fromEntries(data.vendors.map((v) => [v.id, v.name]));
 const money = (n) => '$' + (n >= 100 ? Math.round(n) : n.toFixed(2));
-const ppg = (i) => (i.effPpg ? `${money(i.effPpg)}/g${i.shipPpg ? ' shipped' : ''}` : i.bestPpg ? `${money(i.bestPpg)}/g` : money(i.minPrice));
+const cents = (n) => '$' + (Number.isInteger(n) ? n : n.toFixed(2));
+// The full price you'd pay at checkout for the size the $/g is based on, then the $/g:
+// "$69.99 for 14g, free shipping ($5.00/g)" · "$69.99 for 14g incl. $10 shipping ($5.00/g)" · "$54 for 1g in store ($54.00/g)"
+function fullPrice(i, withCode = false) {
+  const grams = i.effGrams || i.bestPpgGrams;
+  if (i.local) return grams ? `${cents(i.bestPpgPrice ?? i.minPrice)} for ${grams}g in store (${money(i.effPpg)}/g)` : `${cents(i.minPrice)} in store`;
+  if (!grams || !i.effPpg) return `${cents(i.minPrice)} (no weight listed)`;
+  const v = (i.variants || []).find((x) => x.label === i.shipLabel) || (i.variants || []).find((x) => x.label === i.bestPpgLabel);
+  const sticker = v?.price ?? i.bestPpgPrice;
+  if (withCode && i.codePpg && i.codePct) {
+    // price the real order: each size with the code taken off, then that store's shipping (same rules as the site)
+    const sh = data.vendors.find((x) => x.id === i.vendorId)?.shipping || {};
+    const known = sh.freeOver != null || sh.cost != null;
+    const freeOver = known ? sh.freeOver ?? null : 100, cost = sh.cost ?? 10, est = !known || sh.cost == null;
+    let best = null;
+    for (const x of i.variants || []) {
+      if (!x.grams || !(x.price > 0) || (i.available && !x.available)) continue;
+      const after = Math.round(x.price * (1 - i.codePct / 100) * 100) / 100;
+      const ship = freeOver != null && after >= freeOver ? 0 : cost;
+      if (!best || (after + ship) / x.grams < best.ppg) best = { x, after, ship, total: Math.round((after + ship) * 100) / 100, ppg: (after + ship) / x.grams };
+    }
+    if (best) {
+      const noCode = best.x.price + (freeOver != null && best.x.price >= freeOver ? 0 : cost);
+      const shipTxt = best.ship ? `incl. ${est ? 'est. ' : ''}${cents(best.ship)} shipping` : 'free shipping';
+      return `${cents(best.total)} for ${best.x.grams}g with ${i.code ? `code ${i.code}` : 'the sale'} (${i.codePct}% off), ${shipTxt} (${money(best.ppg)}/g; ${cents(Math.round(noCode * 100) / 100)} without the code)`;
+    }
+  }
+  const total = i.shipPrice ?? sticker, ship = Math.round((total - sticker) * 100) / 100;
+  const shipTxt = i.shipPrice == null ? 'before shipping' : i.shipFree || ship <= 0 ? 'free shipping' : `incl. ${i.shipEstimated ? 'est. ' : ''}${cents(ship)} shipping`;
+  return `${cents(total)} for ${grams}g, ${shipTxt} (${money(i.effPpg)}/g)`;
+}
+const ppg = (i) => fullPrice(i);
 const recent = (d, days = 1) => d && (Date.now() - new Date(d + 'T12:00:00Z')) / 864e5 <= days;
 
 const events = [];
@@ -41,7 +72,7 @@ const myState = watch.settings?.state || 'VA';
 const vShip = watch.settings?.vendorShip || {};
 const shipsToMe = (vid) => vShip[vid] ?? !(data.vendors.find((v) => v.id === vid)?.noShip || []).includes(myState);
 const pay = (i) => i.codePpg || i.effPpg; // what you'd pay per gram, with a public code when there is one
-const payTxt = (i) => (i.codePpg ? `${money(i.codePpg)}/g with ${i.code ? `code ${i.code}` : 'sale'}` : ppg(i));
+const payTxt = (i) => fullPrice(i, true);
 
 for (const i of data.items) {
   if (i.stale) continue;
@@ -54,19 +85,19 @@ for (const i of data.items) {
   const strainHit = i.group && strains.has(i.group);
   if (starred || strainHit) {
     const why = starred ? 'Starred' : 'Watched strain';
-    if (i.drop && recent(i.drop.at, 2)) add(`drop:${i.id}:${i.effPpg}`, { prio: 4, tag: 'chart_with_downwards_trend', title: `${why} dropped ${i.drop.pct}%`, body: `${i.title} at ${where}: ${ppg(i)} (was ${money(i.drop.from)}/g)`, url: i.url });
-    if (i.restocked && recent(i.restocked, 2)) add(`restock:${i.id}:${i.restocked}`, { prio: 4, tag: 'package', title: `${why} back in stock`, body: `${i.title} at ${where}: ${ppg(i)}`, url: i.url });
-    if (starred && i.low30 && i.available) add(`low:${i.id}:${i.effPpg}`, { prio: 3, tag: 'moneybag', title: 'Lowest price in 30 days', body: `${i.title} at ${where}: ${ppg(i)}`, url: i.url });
-    if (strainHit && !starred && i.isNew && i.available) add(`new:${i.id}`, { prio: 3, tag: 'seedling', title: 'Watched strain just listed', body: `${i.title} at ${where}: ${ppg(i)}`, url: i.url });
+    if (i.drop && recent(i.drop.at, 2)) add(`drop:${i.id}:${i.effPpg}`, { prio: 4, tag: 'chart_with_downwards_trend', title: `${why} dropped ${i.drop.pct}%`, body: `${i.title} at ${where}: ${payTxt(i)}. Was ${money(i.drop.from)}/g`, url: i.url });
+    if (i.restocked && recent(i.restocked, 2)) add(`restock:${i.id}:${i.restocked}`, { prio: 4, tag: 'package', title: `${why} back in stock`, body: `${i.title} at ${where}: ${payTxt(i)}`, url: i.url });
+    if (starred && i.low30 && i.available) add(`low:${i.id}:${i.effPpg}`, { prio: 3, tag: 'moneybag', title: 'Lowest price in 30 days', body: `${i.title} at ${where}: ${payTxt(i)}`, url: i.url });
+    if (strainHit && !starred && i.isNew && i.available) add(`new:${i.id}`, { prio: 3, tag: 'seedling', title: 'Watched strain just listed', body: `${i.title} at ${where}: ${payTxt(i)}`, url: i.url });
   }
   // a hashmaker or store you follow listed something new
   const mk = (i.hashmaker || i.thirdParty || "").toLowerCase();
   if (i.isNew && recent(i.isNew, 1) && i.available && !starred && !strainHit && (makers.has(mk) || stores.has(i.vendorId)))
-    add(`follow:${i.id}`, { prio: 3, tag: "sparkles", title: makers.has(mk) ? `New from ${i.hashmaker || i.thirdParty}` : `New at ${where}`, body: `${i.title}${makers.has(mk) ? ` at ${where}` : ""}: ${ppg(i)}`, url: i.url });
+    add(`follow:${i.id}`, { prio: 3, tag: "sparkles", title: makers.has(mk) ? `New from ${i.hashmaker || i.thirdParty}` : `New at ${where}`, body: `${i.title}${makers.has(mk) ? ` at ${where}` : ""}: ${payTxt(i)}`, url: i.url });
   // big deals worth knowing about even if not starred
   const topTier = ['S', 'A+', 'A'].includes(i.tier);
   if (topTier && i.available && ratings[i.id]?.r !== -1 && i.dealRatio >= 1.43 && i.quality >= 60 && ((i.isNew && recent(i.isNew, 1)) || (i.drop && recent(i.drop.at, 1))))
-    add(`deal:${i.id}:${i.effPpg}`, { prio: 3, tag: 'fire', title: `${Math.round((1 - 1 / i.dealRatio) * 100)}% under median`, body: `${i.title} at ${where} (${i.tier}): ${ppg(i)}, quality ${i.quality}`, url: i.url, deal: true });
+    add(`deal:${i.id}:${i.effPpg}`, { prio: 3, tag: 'fire', title: `${Math.round((1 - 1 / i.dealRatio) * 100)}% under median`, body: `${i.title} at ${where} (${i.tier}): ${payTxt(i)}, quality ${i.quality}`, url: i.url, deal: true });
 }
 
 // running low: from your purchase log, when you usually rebuy each type

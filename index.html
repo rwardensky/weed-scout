@@ -634,10 +634,21 @@ function shipCost(vendorId, price) {
   return freeOver != null && price >= freeOver ? 0 : cost;
 }
 // What you'd pay at checkout for the size the $/g is based on: price + shipping (− promo code when on).
+// With a promo code: the real order for the best size — price minus the code, then that store's shipping
+function codeOrder(i) {
+  if (!S.codes || !i.codePpg || !i.codePct || i.local) return null;
+  let best = null;
+  for (const x of i.variants) {
+    if (!x.grams || !(x.price > 0) || (i.available && !x.available)) continue;
+    const after = Math.round(x.price * (1 - i.codePct / 100) * 100) / 100, ship = shipCost(i.vendorId, after);
+    if (!best || (after + ship) / x.grams < best.ppg) best = { x, after, ship, total: Math.round((after + ship) * 100) / 100, ppg: (after + ship) / x.grams };
+  }
+  return best;
+}
 function total(i) {
   if (i.local) return i.bestPpgPrice ?? i.minPrice;
   if (!i.effPpg) return i.minPrice != null ? i.minPrice + shipCost(i.vendorId, i.minPrice) : null;
-  if (S.codes && i.codePpg && i.effGrams) return Math.round(i.codePpg * i.effGrams * 100) / 100;
+  const co = codeOrder(i); if (co) return co.total;
   return i.shipPrice ?? i.bestPpgPrice;
 }
 const cents = (n) => n == null ? '—' : '$' + (Number.isInteger(n) ? n : n.toFixed(2));
@@ -648,11 +659,13 @@ function priceCell(i) {
     return `<div class="num price"><b>${cents(total(i))}</b><small>${i.effPpg ? top : ''}${i.effGrams ? ' · ' + i.effGrams + 'g' : ''}</small><small>in store${d ? `, ${d.pct}% ${esc(d.label)} off` : ''}</small></div>`;
   }
   if (!i.effPpg) return `<div class="num price"><b>~${cents(total(i))}</b><small>no weight listed</small><small>with est. shipping</small></div>`;
+  const co = codeOrder(i);
   const shipVar = i.variants.find((x) => x.label === i.shipLabel);
-  const shipAmt = i.shipPrice != null && shipVar ? +(i.shipPrice - shipVar.price).toFixed(2) : null;
-  const ship = i.shipPpg ? (i.shipFree ? 'free shipping' : `incl. ${i.shipEstimated ? 'est. ' : ''}${cents(shipAmt)} shipping`) : 'before shipping';
-  const size = i.effGrams ? `${i.effGrams}g${i.weightAssumed ? ' (assumed)' : ''}` : '';
-  const coded = S.codes && i.codePpg;
+  const shipAmt = co ? co.ship : i.shipPrice != null && shipVar ? +(i.shipPrice - shipVar.price).toFixed(2) : null;
+  const ship = i.shipPpg ? (shipAmt === 0 || (!co && i.shipFree) ? 'free shipping' : `incl. ${i.shipEstimated ? 'est. ' : ''}${cents(shipAmt)} shipping`) : 'before shipping';
+  const g = co ? co.x.grams : i.effGrams;
+  const size = g ? `${g}g${i.weightAssumed && !co ? ' (assumed)' : ''}` : '';
+  const coded = !!co;
   const code = coded ? `<small class="codeline">${i.code ? `code <code class="promo">${esc(i.code)}</code>` : 'sale'} −${i.codePct}%, was ${money(i.effPpg)}/g</small>` : '';
   return `<div class="num price" title="Total at checkout for this size, shipping included. Sticker ${money(i.bestPpg)}/g"><b>${cents(total(i))}</b><small>${money(pp(i))}/g${size ? ' · ' + size : ''}</small><small>${ship}</small>${code}</div>`;
 }
