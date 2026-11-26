@@ -1,0 +1,55 @@
+name: Track packages
+
+on:
+  schedule:
+    - cron: "23 */3 * * *" # every 3 hours
+  workflow_dispatch:
+  push: # right after you add or edit an order on the site (it saves vault.json)
+    branches: [main]
+    paths: [vault.json]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: track
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # VAULT_KEY: the key the Orders tab shows. SHIP24_API_KEY: free key from ship24.com.
+      - name: Check packages
+        env:
+          VAULT_KEY: ${{ secrets.VAULT_KEY }}
+          SHIP24_API_KEY: ${{ secrets.SHIP24_API_KEY }}
+        run: |
+          git config user.name "weed-scout-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for try in 1 2 3; do
+            node track.mjs --out "$RUNNER_TEMP/track-msgs.json"
+            if git diff --quiet -- vault.json; then echo "No tracking changes"; exit 0; fi
+            git add vault.json
+            git commit -m "Tracking update"
+            if git push origin HEAD:main; then exit 0; fi
+            # the site saved the vault meanwhile: start again from the newest copy
+            git fetch origin main && git reset --hard origin/main
+            sleep 5
+          done
+          exit 1
+
+      - name: Send Telegram updates
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node track.mjs --send "$RUNNER_TEMP/track-msgs.json"

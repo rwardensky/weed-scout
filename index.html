@@ -228,6 +228,99 @@ details summary { cursor: pointer; color: var(--accent) }
 :root[data-theme="night"] .ostat.shipped { background: #1f2f55; color: #9cc2ff } :root[data-theme="night"] .ostat.ordered { background: #4a3618; color: #ffcf7a }
 .themebtn { position: absolute; top: 14px; right: max(16px, env(safe-area-inset-right, 0px)); z-index: 2; font-size: 18px; line-height: 1; background: rgb(255 255 255 / .18); border: 1px solid rgb(255 255 255 / .3); color: #fff; border-radius: 999px; width: 38px; height: 38px; cursor: pointer }
 .themebtn:hover { background: rgb(255 255 255 / .28) }
+/* three tabs: Deals, Suggestions, Orders & reviews */
+.maintabs { display: flex; gap: 6px; padding-top: 14px; overflow-x: auto; scrollbar-width: none }
+.maintabs::-webkit-scrollbar { display: none }
+.maintabs a { font: 600 15px var(--display); text-decoration: none; color: var(--muted); padding: 9px 16px; border-radius: 999px; background: var(--sunk); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px }
+.maintabs a:hover { color: var(--fg) }
+.maintabs a[aria-current="page"] { background: var(--fg); color: var(--bg) }
+.tabbadge { font: 700 11px var(--body); background: var(--accent); color: #fff; border-radius: 999px; padding: 1px 7px }
+body[data-tab="orders"] .t-deals, body[data-tab="orders"] .t-suggest, body[data-tab="suggest"] .t-deals, body[data-tab="suggest"] .t-orders,
+body:not([data-tab="orders"]):not([data-tab="suggest"]) .t-orders, body:not([data-tab="orders"]):not([data-tab="suggest"]) .t-suggest { display: none !important }
+.card { background: var(--surface); border-radius: 16px; padding: 14px; box-shadow: var(--shadow) }
+.ohero { display: flex; flex-wrap: wrap; gap: 10px 20px; justify-content: space-between; align-items: center; margin-bottom: 8px }
+.ohero h2 { margin: 0 }
+.osec { font: 600 18px var(--display); margin: 22px 0 10px; display: flex; gap: 8px; align-items: baseline }
+.empty-s { padding: 10px 2px }
+.filebtn { display: inline-flex; align-items: center; gap: 6px }
+.go.small { font-size: 14px; padding: 7px 16px; box-shadow: none; margin-top: 6px }
+.ocr { display: flex; gap: 10px; align-items: center; margin: 10px 0 }
+.spinner { width: 18px; height: 18px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite }
+@keyframes spin { to { transform: rotate(360deg) } }
+/* add / edit order */
+.oedit { margin: 12px 0; border: 2px solid #ffd9b8 }
+.oedit h3 { font: 600 18px var(--display); margin: 0 0 6px }
+.eform { display: flex; flex-wrap: wrap; gap: 10px 14px; margin: 10px 0 }
+.eform label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted) }
+.eform label.wide { flex: 1 1 260px }
+.eform input, .eform select, .eitem input, .keybox input, .otrack, .rfilters select { font: 14px var(--body); color: var(--fg); background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px }
+.eitems { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px }
+.eitem { display: flex; gap: 8px; align-items: center }
+.eitem .eqty { width: 60px } .eitem .ename { flex: 1; min-width: 0 }
+.ematch { font-size: 12px; color: var(--good); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap }
+.ematch img { width: 24px; height: 24px; border-radius: 6px; object-fit: cover }
+.rawtext { white-space: pre-wrap; font-size: 12px; max-height: 200px; overflow: auto; background: var(--bg); padding: 8px; border-radius: 8px }
+/* orders */
+.orders { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px }
+.order { background: var(--surface); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; border-top: 5px solid #f2a516 }
+.order.st1 { border-top-color: #3b8cff } .order.st2 { border-top-color: #a35cf0 } .order.st3 { border-top-color: #38b46a }
+.ohead { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-family: var(--display); font-size: 16px }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 4px 0 }
+.steps span { font-size: 10.5px; font-weight: 600; color: var(--faint); border-top: 4px solid var(--sunk); padding-top: 4px; text-align: center }
+.steps span.done { color: var(--fg); border-top-color: var(--c-flower) }
+.eta { font-size: 14px } .eta b { font-family: var(--display); font-size: 15px }
+.late { color: var(--bad); font-weight: 600 }
+.oitems { margin: 2px 0; padding-left: 18px; font-size: 13px }
+.oitems a { color: var(--fg) }
+.order .row a.watchbtn { text-decoration: none; display: inline-block; margin-top: 0 } .order .row .watchbtn { margin-top: 0 }
+.otrack { width: 190px; font-size: 13px; padding: 6px 9px }
+/* reviews */
+.rqueue, .reviews { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px }
+.rq-item { display: flex; gap: 12px; align-items: flex-start }
+.rq-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px }
+.rform { display: flex; flex-direction: column; gap: 8px; margin-top: 6px }
+.rrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px }
+.rscores { display: grid; gap: 4px; padding: 6px 10px; background: var(--bg); border-radius: 10px }
+.stars { display: inline-flex }
+.stars button { all: unset; cursor: pointer; font-size: 22px; line-height: 1; color: #e2d6c2; padding: 0 1px }
+.stars button.on { color: var(--star) }
+.rscores .stars button { font-size: 18px }
+.stars button:focus-visible { outline: 2px solid var(--accent); border-radius: 4px }
+.rerr { color: var(--bad); font-size: 12px; font-weight: 600 }
+.rb button { font-size: 12px; padding: 4px 10px }
+.review { display: flex; flex-direction: column; gap: 6px }
+.rhead { display: flex; gap: 10px; align-items: center }
+.rhead > div { flex: 1; min-width: 0 } .rhead a { color: var(--fg) }
+.rhead .thumb { width: 48px; height: 48px }
+.bigstars { color: var(--star); font-size: 17px; white-space: nowrap } .bigstars i { color: #e2d6c2; font-style: normal }
+.rchips { display: flex; flex-wrap: wrap; gap: 5px }
+.rnote { margin: 0; font-size: 14px; white-space: pre-wrap }
+.rfilters { margin-bottom: 10px }
+/* private sync */
+.synccard { margin-top: 26px }
+.synccard summary { cursor: pointer; display: flex; flex-direction: column; gap: 2px; color: var(--fg); font-size: 14px }
+.keybox { margin: 10px 0 } .keyval { width: 300px; max-width: 100%; font-family: ui-monospace, Consolas, monospace !important; font-size: 12px !important }
+.keyin { width: 280px; max-width: 100% }
+.setup ol { margin: 6px 0; padding-left: 20px }
+.setup code, .keybox code { font-size: 12px; background: var(--sunk); padding: 1px 5px; border-radius: 5px }
+/* suggestions */
+.ssec { margin-bottom: 4px }
+.sgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px }
+.scard { display: flex; gap: 10px; align-items: flex-start; background: var(--surface); border-radius: 14px; padding: 10px; box-shadow: var(--shadow); text-decoration: none; color: var(--fg); border-left: 5px solid var(--line); transition: transform .12s }
+.scard:hover { transform: translateY(-2px) }
+.scard.c-rosin { border-left-color: var(--c-rosin) } .scard.c-flower { border-left-color: var(--c-flower) } .scard.c-preroll { border-left-color: var(--c-preroll) } .scard.c-vape { border-left-color: var(--c-vape) } .scard.c-concentrate { border-left-color: var(--c-concentrate) }
+.scard .thumb { width: 56px; height: 56px; flex: none }
+.sbody { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
+.sbody > b { font: 600 14.5px/1.25 var(--display) }
+.sprice b { font: 700 16px var(--display) }
+.swhy { font-size: 12px; color: var(--accent); font-weight: 600 }
+#suggestTab { margin-top: -12px }
+:root[data-theme="night"] .oedit { border-color: #5b3d58 } :root[data-theme="night"] .stars button { color: #4d4268 } :root[data-theme="night"] .stars button.on { color: var(--star) }
+@media (max-width: 760px) {
+  .maintabs a { font-size: 14px; padding: 8px 13px }
+  .eitem { flex-wrap: wrap } .eitem .ename { flex: 1 1 200px }
+  .sgrid { grid-template-columns: 1fr }
+}
 @media (max-width: 760px) {
   .scroller { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px }
   .scroller::-webkit-scrollbar { display: none }
@@ -255,8 +348,13 @@ details summary { cursor: pointer; color: var(--accent) }
   </div>
   <div class="stats" id="stats"></div>
 </header></div>
+<nav class="maintabs wrap" aria-label="Sections">
+  <a href="#deals" data-tab="deals">🔥 Deals</a>
+  <a href="#suggest" data-tab="suggest">✨ Suggestions</a>
+  <a href="#orders" data-tab="orders">📦 Orders &amp; reviews<span class="tabbadge" id="ordBadge" hidden></span></a>
+</nav>
 
-<div class="bar">
+<div class="bar t-deals">
   <div class="wrap">
     <div class="row">
       <div class="seg tabs" id="scope" role="tablist" aria-label="Where to buy">
@@ -317,7 +415,7 @@ details summary { cursor: pointer; color: var(--accent) }
 </div>
 
 <main class="wrap">
-  <section id="cartsec" class="planner">
+  <section id="cartsec" class="planner t-suggest">
     <h2 class="planhead"><button type="button" id="planToggle" aria-expanded="true" aria-controls="planBody"><span class="plantitle">🛒 Plan an order</span><span class="note">Say what you want to spend and what you're after. It builds orders from the best deals, with shipping and promo codes counted.</span><span class="chev" aria-hidden="true">▾</span></button></h2>
     <div id="planBody">
     <div class="planform">
@@ -344,36 +442,23 @@ details summary { cursor: pointer; color: var(--accent) }
     <div id="cartOut"></div>
     </div>
   </section>
-  <section>
+  <section id="suggestTab" class="t-suggest"><div class="empty">Loading suggestions…</div></section>
+  <section class="t-deals">
     <div id="syncnote"></div>
     <p class="note" id="count"></p>
     <div class="list" id="list"><div class="empty">Loading products…</div></div>
   </section>
-  <section id="orders">
-    <h2>📦 My orders</h2>
-    <p class="note">Track what you've ordered. Paste the tracking number when it ships and it links straight to USPS, UPS, FedEx or DHL. Saved on this device only (your site's data is public on GitHub, so order and tracking numbers stay off it).</p>
-    <form class="orderform" id="orderForm">
-      <select id="oStore" aria-label="Store" required></select>
-      <input id="oNum" placeholder="Order #" aria-label="Order number" autocomplete="off">
-      <input id="oDate" type="date" aria-label="Order date">
-      <label class="money-in sm">$<input id="oTotal" type="number" step="0.01" min="0" placeholder="Total" aria-label="Order total" inputmode="decimal"></label>
-      <input id="oItems" class="wide" placeholder="What you ordered (e.g. Small Batch Cheerios 3.5g, HRC T1 Frozen Peaches 2g)" aria-label="Items" list="oItemList" autocomplete="off">
-      <datalist id="oItemList"></datalist>
-      <input id="oTrack" placeholder="Tracking # (optional)" aria-label="Tracking number" autocomplete="off">
-      <button class="go" type="submit">Add order</button>
-    </form>
-    <div id="orderList"></div>
-  </section>
-  <section>
-    <h2>My stash</h2>
+  <section id="ordersTab" class="t-orders"><div class="empty">Loading your orders…</div></section>
+  <section class="t-orders">
+    <h2>🫙 My stash</h2>
     <div id="stash"></div>
   </section>
-  <section>
+  <section class="t-deals">
     <h2>Vendor coverage</h2>
     <p class="note">What the last refresh pulled from each site, with shipping terms and promo codes read from the store's own pages. "Ships to you" comes from the store's policy when it names your state; mark stores yourself once you know (✓ or ✗). Reliability and drop days build up from the daily price history. White Ash Reserve and Crysp update when you run the <a href="capture.html">capture bookmark</a> on their sites. Reddit counts are posts and comments from the last 12 months in r/THCaFlower, r/THCAextracts, r/hashrosin and r/hempflowers.</p>
     <div class="tbl-wrap"><table id="vtbl"></table></div>
   </section>
-  <section>
+  <section class="t-deals">
     <h2>How scores work</h2>
     <p class="note" style="max-width:75ch">
       <b>Price with shipping</b>: for each size, the price plus that store's shipping if the order is under its free-shipping minimum. When a store doesn't publish its terms, it assumes $10 shipping, free over $100, and marks it "est." The cheapest size per gram after shipping is what's shown and ranked.
@@ -503,74 +588,6 @@ function logPurchase(i, variantIdx, price, date) {
   W.purchases.push({ id: i.id, title: i.title, vendorId: i.vendorId, category: i.category, label: x.label, grams: x.grams || null, price: +price, date });
   W.purchases.sort((a, b) => b.date.localeCompare(a.date));
   changed(); renderStash();
-}
-// ---------- my orders: on this device only (localStorage), tracking links by carrier ----------
-let ORDERS = ls.get('ws-orders', []);
-const saveOrders = () => { ls.set('ws-orders', ORDERS); renderOrders(); };
-function carrierOf(raw) {
-  const t = (raw || '').replace(/[\s-]/g, '').toUpperCase();
-  if (!t) return null;
-  if (/^1Z[0-9A-Z]{16}$/.test(t)) return { name: 'UPS', url: `https://www.ups.com/track?tracknum=${t}` };
-  if (/^9[1-5]\d{18,24}$/.test(t) || /^420\d{5}9\d{19,25}$/.test(t) || /^[A-Z]{2}\d{9}US$/.test(t)) return { name: 'USPS', url: `https://tools.usps.com/go/TrackConfirmAction?tLabels=${t}` };
-  if (/^\d{12}$|^\d{15}$/.test(t)) return { name: 'FedEx', url: `https://www.fedex.com/fedextrack/?trknbr=${t}` };
-  if (/^\d{10}$/.test(t)) return { name: 'DHL', url: `https://www.dhl.com/us-en/home/tracking/tracking-express.html?tracking-id=${t}` };
-  return { name: 'USPS (guess)', url: `https://tools.usps.com/go/TrackConfirmAction?tLabels=${t}` };
-}
-function storeOrderPage(vid) {
-  const v = V[vid] || {}; if (!v.url) return null;
-  const woo = v.platform === 'woo' || ['war', 'crysp', 'hellomary'].includes(vid);
-  return v.platform === 'shopify' ? `${v.url}/account` : woo ? `${v.url}/my-account/orders/` : v.url;
-}
-function renderOrders() {
-  const el = $('#orderList'); if (!el || !D) return;
-  if (!ORDERS.length) { el.innerHTML = '<p class="note">No orders yet. Add one above when you buy something.</p>'; return; }
-  const days = (d) => Math.max(0, Math.round((Date.now() - new Date(d + 'T12:00:00')) / 864e5));
-  const STEP = { ordered: ['🧾', 'Ordered'], shipped: ['🚚', 'Shipped'], delivered: ['✅', 'Delivered'] };
-  el.innerHTML = '<div class="orders">' + [...ORDERS].sort((a, b) => (a.status === 'delivered') - (b.status === 'delivered') || b.date.localeCompare(a.date)).map((o) => {
-    const c = carrierOf(o.track), v = V[o.vid] || {}, page = storeOrderPage(o.vid);
-    const late = o.status === 'ordered' && days(o.date) >= 5;
-    return `<div class="order ${o.status}" data-oid="${esc(o.id)}">
-      <div class="ohead"><b>${esc(v.name || o.vid)}${o.num ? ` <span class="note">#${esc(o.num)}</span>` : ''}</b><span class="ostat ${o.status}">${STEP[o.status][0]} ${STEP[o.status][1]}</span></div>
-      <div class="note">${shortDate(o.date)} · ${days(o.date) ? `${days(o.date)} day${days(o.date) > 1 ? 's' : ''} ago` : 'today'}${o.total ? ` · ${cents(+o.total)}` : ''}${late ? ' · <span style="color:var(--bad)">no tracking yet, check with the store</span>' : ''}</div>
-      ${o.items ? `<div class="oitems">${esc(o.items)}</div>` : ''}
-      <div class="row">
-        ${c ? `<a class="watchbtn" href="${esc(c.url)}" target="_blank" rel="noopener">📍 Track on ${esc(c.name)}</a>` : `<input class="otrack" placeholder="Paste tracking #" aria-label="Tracking number for order ${esc(o.num || '')}" autocomplete="off"><button class="watchbtn" data-oact="track">Save</button>`}
-        ${page ? `<a class="watchbtn" href="${esc(page)}" target="_blank" rel="noopener">Store order page</a>` : ''}
-        ${o.status !== 'delivered' ? `<button class="watchbtn" data-oact="delivered">Mark delivered</button>` : o.logged ? '<span class="note">In your stash</span>' : `<button class="watchbtn" data-oact="stash">Add to my stash</button>`}
-        <button class="linkbtn" data-oact="del">Remove</button>
-      </div></div>`;
-  }).join('') + '</div>';
-}
-function initOrders() {
-  const sel = $('#oStore');
-  for (const v of [...D.vendors].filter((v) => !v.local).sort((a, b) => a.name.localeCompare(b.name))) sel.add(new Option(v.name, v.id));
-  $('#oDate').value = new Date().toISOString().slice(0, 10);
-  const fillItems = () => { $('#oItemList').innerHTML = D.items.filter((i) => i.vendorId === sel.value).slice(0, 300).map((i) => `<option value="${esc(i.title)}">`).join(''); };
-  sel.onchange = fillItems; fillItems();
-  $('#orderForm').onsubmit = (e) => {
-    e.preventDefault();
-    const track = $('#oTrack').value.trim();
-    ORDERS.push({ id: Date.now().toString(36), vid: sel.value, num: $('#oNum').value.trim().replace(/^#/, ''), date: $('#oDate').value || new Date().toISOString().slice(0, 10), total: +$('#oTotal').value || null, items: $('#oItems').value.trim(), track, status: track ? 'shipped' : 'ordered' });
-    for (const id of ['#oNum', '#oTotal', '#oItems', '#oTrack']) $(id).value = '';
-    saveOrders();
-  };
-  $('#orderList').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-oact]'); if (!b) return;
-    const card = b.closest('[data-oid]'), o = ORDERS.find((x) => x.id === card.dataset.oid); if (!o) return;
-    const act = b.dataset.oact;
-    if (act === 'track') { const t = card.querySelector('.otrack').value.trim(); if (t) { o.track = t; o.status = 'shipped'; } }
-    if (act === 'delivered') o.status = 'delivered';
-    if (act === 'del' && confirm('Remove this order from your list?')) ORDERS = ORDERS.filter((x) => x !== o);
-    if (act === 'stash') {
-      // the whole order goes into "My stash" as one purchase so spending and run-out reminders see it
-      const grams = [...(o.items || '').matchAll(/(\d+(?:\.\d+)?)\s*g\b/gi)].reduce((s, m) => s + +m[1], 0) || null;
-      const cat = /rosin|hash|jam|badder|sauce/i.test(o.items) ? 'rosin' : /pre-?roll|joint/i.test(o.items) ? 'preroll' : /vape|cart|pen/i.test(o.items) ? 'vape' : 'flower';
-      W.purchases.push({ id: `order:${o.vid}:${o.num || o.id}`, title: o.items || `Order ${o.num || ''}`, vendorId: o.vid, category: cat, label: '', grams, price: +o.total || 0, date: o.date });
-      W.purchases.sort((a, b) => b.date.localeCompare(a.date)); o.logged = true; changed(); renderStash();
-    }
-    saveOrders();
-  });
-  renderOrders();
 }
 function syncNote(err) {
   const n = W.items.size + W.strains.size + Object.keys(W.ratings).length + Object.keys(W.targets).length + W.purchases.length;
@@ -1185,7 +1202,8 @@ function useData(d) {
   // one product sold as separate listings per size ("Cured Badder 56g…", "…112g…") → one family, one card
   F = {}; for (const i of d.items) { i.fam = famKey(i); (F[i.fam] ||= []).push(i); }
   vendorAffinity();
-  stats(); if (!wired) { wire(); initOrders(); wired = true; } else { catCounts(); renderOrders(); }
+  stats(); if (!wired) { wire(); window.initOrdersTab?.(); wired = true; } else { catCounts(); window.renderOrdersTab?.(); }
+  if (document.body.dataset.tab === 'suggest') window.renderSuggestTab?.();
   render(); renderVendors(); renderStash(); syncNote();
 }
 // Open instantly from the copy saved on this device, then swap in the fresh list when it arrives.
@@ -1200,10 +1218,20 @@ function useData(d) {
   }
 })();
 loadRemoteWatch();
-// order planner folds away; remembers how you left it (starts folded so the deals list comes first)
+// two tabs: Deals (#deals) and Orders & reviews (#orders)
+function showTab() {
+  const t = { '#orders': 'orders', '#suggest': 'suggest' }[location.hash] || 'deals';
+  document.body.dataset.tab = t;
+  document.querySelectorAll('.maintabs a').forEach((a) => a.setAttribute('aria-current', a.dataset.tab === t ? 'page' : 'false'));
+  if (t === 'orders') window.renderOrdersTab?.();
+  if (t === 'suggest') window.renderSuggestTab?.();
+}
+addEventListener('hashchange', () => { showTab(); scrollTo({ top: document.querySelector('.maintabs').offsetTop - 8 }); });
+showTab();
+// order builder folds away; remembers how you left it
 { const sec = $('#cartsec'), btn = $('#planToggle');
   const set = (open) => { sec.classList.toggle('closed', !open); btn.setAttribute('aria-expanded', open); try { localStorage.setItem('ws-plan-open', open ? '1' : '0'); } catch {} };
-  let open = false; try { open = localStorage.getItem('ws-plan-open') === '1'; } catch {}
+  let open = true; try { open = localStorage.getItem('ws-plan-open') !== '0'; } catch {}
   set(open);
   btn.onclick = () => { const o = sec.classList.contains('closed'); set(o); if (o) $('#cartBudget').focus({ preventScroll: true }); }; }
 { const tb = $('#themeBtn'); const sync = () => { const n = document.documentElement.dataset.theme === 'night'; tb.textContent = n ? '☀️' : '🌙'; tb.setAttribute('aria-label', n ? 'Day mode' : 'Night mode'); tb.title = tb.getAttribute('aria-label'); document.querySelector('meta[name=theme-color]').content = n ? '#1d6b4f' : '#2f9e6a'; };
@@ -1211,3 +1239,5 @@ loadRemoteWatch();
   sync(); }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
+<script src="orders.js"></script>
+<script src="suggest.js"></script>
