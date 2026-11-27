@@ -123,11 +123,35 @@
     try {
       await loadTess();
       const worker = await Tesseract.createWorker('eng', 1, { logger: (m) => { if (m.status === 'recognizing text') { ocrBusy = `Reading your screenshot… ${Math.round(m.progress * 100)}%`; const el = $('#ocrMsg'); if (el) el.textContent = ocrBusy; } } });
-      const { data } = await worker.recognize(file);
+      const { data } = await worker.recognize(await prepImage(file));
       await worker.terminate();
       ocrBusy = '';
       openEditor(parseOrderText(data.text), true);
     } catch (e) { ocrBusy = ''; openEditor({ items: [] }, true); editor.warn = `Couldn't read that image (${e.message || e}). Type the details below instead.`; render(); }
+  }
+  // The text reader is trained on dark text on white. Dark-mode store pages (White Ash Reserve) and small phone
+  // text read badly as-is, so: enlarge small images, go grayscale, flip light-on-dark to dark-on-light, add contrast.
+  async function prepImage(file) {
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = bmp.width < 900 ? 2 : bmp.width < 1300 ? 1.5 : 1;
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, c.width, c.height);
+      const im = g.getImageData(0, 0, c.width, c.height), d = im.data;
+      let sum = 0, n = 0;
+      for (let i = 0; i < d.length; i += 64) { sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; n++; }
+      const dark = sum / n < 128;
+      for (let i = 0; i < d.length; i += 4) {
+        let y = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        if (dark) y = 255 - y;
+        y = (y - 140) * 1.8 + 140; // stretch contrast; faint grey labels become readable
+        d[i] = d[i + 1] = d[i + 2] = y < 0 ? 0 : y > 255 ? 255 : y;
+      }
+      g.putImageData(im, 0, 0);
+      return c;
+    } catch { return file; }
   }
   const MONTHS = 'jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec';
   function parseOrderText(text) {
@@ -140,7 +164,7 @@
       const host = (v.url || '').replace(/^https?:\/\/(www\.)?/, '').split('.')[0];
       if (low.includes(v.name.toLowerCase()) || (host.length > 3 && low.includes(host)) || (v.name.split(' ').length > 1 && low.includes(v.name.split(' ').slice(0, 2).join(' ').toLowerCase()))) { out.vid = v.id; break; }
     }
-    out.num = (all.match(/#\s?([A-Z0-9-]{4,12})\b/i) || all.match(/order\s*(?:number|no\.?|#)?\s*[:#]?\s*([A-Z0-9-]{4,12})\b/i) || [])[1] || '';
+    out.num = (all.match(/#\s?(\d{4,10})\b/) || all.match(/order\s*(?:number|no\.?|#|id)?\s*[:#]?\s*#?\s*([A-Z]{0,3}\d{4,10})\b/i) || all.match(/#\s?([A-Z0-9-]{4,12})\b/i) || [])[1] || '';
     const dm = all.match(new RegExp(`\\b(${MONTHS})[a-z]*\\.? \\d{1,2},? \\d{4}`, 'i')) || all.match(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/);
     if (dm) { const d = new Date(dm[0]); if (!isNaN(d)) out.date = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); }
     const totalLine = lines.filter((l) => /\btotal\b/i.test(l) && !/sub ?total/i.test(l)).pop();
@@ -149,8 +173,24 @@
     out.track = (all.replace(/\s(?=\d{4}\b)/g, '').match(/\b(1Z[0-9A-Z]{16}|9[1-5]\d{18,24}|[A-Z]{2}\d{9}US)\b/) || [])[1] || '';
     // items: every "1 × Name - 3.5g" anywhere in a line (order tables put the first item mid-row, after the date),
     // else "Name × 2", else lines that name a size; prices and status words are trimmed off
-    const clean = (n) => n.replace(/\$\s?\d[\d,.]*.*$/, '').replace(/\b(processing|completed|shipped|on hold|pending)\b.*$/i, '').replace(/\s{2,}/g, ' ').replace(/[-–—\s]+$/, '').trim();
-    for (const l of lines) for (const m of l.matchAll(/(?:^|\s)(\d{1,2})\s*[x×X]\s+(.+?)(?=\s+\d{1,2}\s*[x×X]\s|\s*\$|\s*$)/g)) {
+    const clean = (n) => n.replace(/(\d)\s?[¢€£]/g, '$1g').replace(/(\d)\s?q\b/g, '$1g').replace(/\$\s?\d[\d,.]*.*$/, '').replace(/\b(processing|completed|shipped|on hold|pending)\b.*$/i, '').replace(/\s{2,}/g, ' ').replace(/[-–—\s]+$/, '').trim();
+    // on a phone the item column is narrow, so "1 × Small Batch Cheerios - 3.5g" wraps over two or three lines:
+    // glue the following lines on until the size shows up (or something that clearly isn't the name)
+    const SIZE = /\b\d+(?:\.\d+)?\s*(?:g|gr|grams?|oz|ml|mg|ct|pk)\b/i;
+    const QTY = /(?:^|\s)\d{1,2}\s*[x×X*]\s+\S/;
+    const STOP = /\$|\b(total|subtotal|shipping|tax|status|processing|completed|order|date|qty|price|payment|actions?|view|account|details|billing)\b/i;
+    const joined = [];
+    for (let k = 0; k < lines.length; k++) {
+      let l = lines[k];
+      const tail = () => l.split(/\d{1,2}\s*[x×X*]\s+/).pop();
+      for (let j = 0; j < 2 && QTY.test(l) && !SIZE.test(tail()) && k + 1 < lines.length; j++) {
+        const nx = lines[k + 1];
+        if (QTY.test(nx) || (STOP.test(nx) && !SIZE.test(nx))) break;
+        l += ' ' + nx; k++;
+      }
+      joined.push(l);
+    }
+    for (const l of joined) for (const m of l.matchAll(/(?:^|\s)(\d{1,2})\s*[x×X*]\s+(.+?)(?=\s+\d{1,2}\s*[x×X*]\s|\s*\$|\s*$)/g)) {
       const name = clean(m[2]); if (name.length >= 3 && /[a-z]{3}/i.test(name)) out.items.push({ name, qty: +m[1] });
     }
     if (!out.items.length) {
@@ -187,7 +227,7 @@
       return `<div class="eitem" data-k="${k}">
         <input class="eqty" type="number" min="1" max="99" value="${it.qty || 1}" aria-label="Quantity">
         <input class="ename" value="${esc(it.name)}" placeholder="Product and size, e.g. HRC T1 Frozen Peaches 2g" aria-label="Product" list="eList">
-        <span class="ematch">${p ? `${p.image ? `<img src="${esc(thumb(p.image))}" alt="" referrerpolicy="no-referrer">` : CAT_ICON[p.category] || ''} matched` : ''}</span>
+        <span class="ematch" title="${p ? `Matched to ${esc(p.title)}` : 'Not matched to a product in the catalog'}">${p ? `${p.image ? `<img src="${esc(thumb(p.image))}" alt="" referrerpolicy="no-referrer">` : CAT_ICON[p.category] || '✓'}<span class="mt">matched</span>` : ''}</span>
         <button class="linkbtn" data-eact="rm" aria-label="Remove item">✕</button></div>`;
     }).join('');
     return `<div class="card oedit" id="oEdit">
@@ -434,6 +474,7 @@
 
   let wired = false;
   window.vaultData = () => V0;
+  window.__wsParseOrder = (t) => parseOrderText(t); // for testing the screenshot reader
   window.initOrdersTab = () => { if (!wired) { wireTab(); wired = true; } render(); load(); };
   window.renderOrdersTab = () => { if (wired) render(); };
   // check for tracking updates when you come back to the page
