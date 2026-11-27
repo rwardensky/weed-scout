@@ -106,6 +106,62 @@ for (const o of vault.orders || []) {
   if (JSON.stringify(prev) !== JSON.stringify({ ...trk, checkedAt: prev.checkedAt })) o.updatedAt = Date.now();
 }
 
+// ---------- what Reddit says about what you bought ----------
+// Products you ordered may be sold out (so not in data.json), so look each one up in the Reddit archive the
+// daily refresh keeps (cache/reddit-corpus.json, restored read-only). Results go in vault-buzz.json, encrypted
+// with the same key, so the public repo never shows what you bought.
+const BUZZ_FILE = path.join(DIR, 'vault-buzz.json');
+const corpusF = path.join(DIR, 'cache', 'reddit-corpus.json');
+if (fs.existsSync(corpusF)) {
+  const docs = Object.values(JSON.parse(fs.readFileSync(corpusF, 'utf8')).docs || {});
+  let cfg = {}; try { cfg = JSON.parse(fs.readFileSync(path.join(DIR, 'vendors.json'), 'utf8')); } catch {}
+  const vend = Object.fromEntries((cfg.vendors || []).map((v) => [v.id, v]));
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const POS = /\b(fire|gas|gassy|amazing|great|best|love|loved|legit|terpy|flavorful|recommend|solid|smooth|impressed|favorite|insane|loud|potent|top ?tier|goat|banger|killer|bomb|dank|delicious|tasty)\b/gi;
+  const NEG = /\b(mid|trash|avoid|worst|bad|harsh|mold|moldy|disappointed|disappointing|overpriced|garbage|weak|burnt|stale|hay|terrible|awful|meh|underwhelming)\b/gi;
+  const score = (t) => { const p = (t.match(POS) || []).length, n = (t.match(NEG) || []).length; return (p - n) / (p + n + 2); };
+  const strip = (s) => (s || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#0?39;|&rsquo;/g, "'").replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ').trim();
+  // "HRC T1 Frozen Peaches - 2g" → try "hrc t1 frozen peaches", "t1 frozen peaches", "frozen peaches"…: the longest phrase Reddit uses
+  const phrases = (name) => {
+    const w = name.toLowerCase().replace(/\(.*?\)/g, ' ').replace(/\b\d+(\.\d+)?\s*(g|gram|grams|oz|mg|ml)\b/g, ' ').replace(/[^a-z0-9#' ]+/g, ' ').split(/\s+/).filter(Boolean);
+    const out = [];
+    for (let k = 0; k < w.length; k++) { const p = w.slice(k).join(' '); if (w.length - k >= 2 || p.length >= 7) out.push(p); }
+    return out;
+  };
+  const buzz = {};
+  const names = new Map();
+  for (const o of vault.orders || []) if (!o.deleted) for (const it of o.items || []) if (it.name) names.set(it.name, o.vid);
+  for (const r of vault.reviews || []) if (!r.deleted && r.name) names.set(r.name, r.vid);
+  for (const [name, vid] of names) {
+    const v = vend[vid] || {};
+    const storeRe = new RegExp(`\\b(${[v.name, ...(v.reddit || [])].filter(Boolean).map(esc).join('|')})\\b`, 'i');
+    for (const ph of phrases(name)) {
+      const re = new RegExp(`\\b${esc(ph).replace(/ /g, '[\\s-]+')}\\b`, 'i');
+      const hits = docs.filter((d) => re.test(d.text));
+      if (!hits.length) continue;
+      const quotes = [];
+      for (const d of hits) {
+        for (const s of d.text.split(/(?<=[.!?])\s+|\n+/)) {
+          if (!re.test(s)) continue;
+          let q = strip(s); if (q.length < 25) continue; if (q.length > 260) q = q.slice(0, 257).replace(/\s+\S*$/, '') + '…';
+          quotes.push({ text: q, sent: +score(q).toFixed(2), store: storeRe.source !== '\\b()\\b' && storeRe.test(d.text), score: d.score || 0, link: d.link, sub: d.sub, t: new Date(d.t * 1000).toISOString().slice(0, 10) });
+        }
+      }
+      const seen = new Set();
+      const says = quotes.sort((a, b) => b.store - a.store || (Math.abs(b.sent) >= 0.2) - (Math.abs(a.sent) >= 0.2) || b.score - a.score || b.t.localeCompare(a.t))
+        .filter((q) => !seen.has(q.link) && seen.add(q.link)).slice(0, 3);
+      const sent = quotes.length ? quotes.reduce((s, q) => s + q.sent, 0) / quotes.length : 0;
+      buzz[name] = { phrase: ph, pos: quotes.filter((q) => q.sent > 0.1).length, neg: quotes.filter((q) => q.sent < -0.1).length, n: hits.length, nStore: hits.filter((d) => storeRe.source !== '\\b()\\b' && storeRe.test(d.text)).length, sent: +sent.toFixed(2), says };
+      break;
+    }
+  }
+  let prev = null; try { prev = unseal(JSON.parse(fs.readFileSync(BUZZ_FILE, 'utf8'))); } catch {}
+  if (JSON.stringify(prev?.buzz || null) !== JSON.stringify(buzz)) {
+    fs.writeFileSync(BUZZ_FILE, JSON.stringify(seal({ t: Date.now(), buzz }), null, 1));
+    console.log(`track: Reddit notes for ${Object.keys(buzz).length} of ${names.size} things you bought`);
+  }
+} else console.log('track: no Reddit archive in the cache yet (the daily refresh makes it)');
+
 // the site shows "arrival dates on/off · checked X ago"; only rewrite while something is actually being tracked
 const tracking = { lastRun: Date.now(), hasKey, checked, ...(error ? { error } : {}) };
 const metaChanged = !vault.tracking || vault.tracking.hasKey !== hasKey || (vault.tracking.error || null) !== (error || null);

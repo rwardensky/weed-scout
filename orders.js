@@ -57,7 +57,39 @@
     const remote = await pull();
     if (remote) { const m = merge(V0, remote); const changedHere = !same(m, remote); V0 = m; ls.set(VKEY, V0); if (changedHere) queuePush(); }
     relink();
+    await loadBuzz();
     render();
+  }
+  // what Reddit says about things you bought (written by the tracking job, encrypted like the vault)
+  let BUZZ = ls.get('ws-buzz', {});
+  async function loadBuzz() {
+    if (!token() || !key() || syncState === 'badkey') return;
+    const r = await api(`vault-buzz.json?ref=main&t=${now()}`).catch(() => null);
+    if (!r?.ok) return;
+    try { const j = await r.json(); const v = await unseal(JSON.parse(atob(j.content.replace(/\n/g, '')))); BUZZ = v.buzz || {}; ls.set('ws-buzz', BUZZ); } catch {}
+  }
+  // ratings under each thing you ordered: yours, the store's, our score, and Reddit (with quotes to expand)
+  function itemRatings(it, vid) {
+    const p = it.productId && D?.items.find((i) => i.id === it.productId);
+    const r = it.reviewId ? V0.reviews.find((x) => x.id === it.reviewId && !x.deleted) : live(V0.reviews).find((x) => x.name === it.name && x.vid === vid);
+    const chips = [];
+    if (r) chips.push(`<span class="rchip mine" title="Your review">You ${'★'.repeat(r.stars)}<i>${'★'.repeat(5 - r.stars)}</i></span>`);
+    if (p?.rating) chips.push(`<span class="rchip" title="Star rating on the store's site">★ ${p.rating.toFixed(1)}${p.reviewCount ? ` <span class="note">(${p.reviewCount})</span>` : ''} at store</span>`);
+    if (p) { chips.push(`<span class="rchip" title="Weed Scout quality score: store tier, hashmaker, reviews, Reddit, your ratings">Quality ${myQ(p)}</span>`); const d = dealWord(dr(p)); if (d && p.available) chips.push(`<span class="deal ${d.cls} mini" title="Today's price vs typical">${d.word} now</span>`); }
+    const b = BUZZ[it.name] || (p?.redditSays?.length ? { n: p.redditMentions, sent: p.redditSent, says: p.redditSays } : null);
+    let quotes = '';
+    if (b?.n) {
+      // mood from how many opinions lean each way (flat "just grabbed it" posts don't drag it to neutral)
+      const pos = b.pos ?? (b.sent > 0.1 ? 1 : 0), neg = b.neg ?? (b.sent < -0.1 ? 1 : 0);
+      const mood = pos && pos >= neg * 2 ? ['pos', 'mostly positive'] : neg && neg >= pos * 2 ? ['neg', 'mostly negative'] : pos || neg ? ['', 'mixed'] : ['', 'no strong opinions'];
+      const scope = b.nStore ? `${b.nStore} name ${esc(V[vid]?.name || 'the store')}` : b.phrase ? 'about the strain, any store' : '';
+      chips.push(`<span class="rchip reddit ${mood[0]}" title="Posts and comments in r/THCaFlower, r/THCAextracts, r/hashrosin and r/hempflowers from the last year">💬 Reddit ${b.n} post${b.n > 1 ? 's' : ''} · ${mood[1]}${scope ? ` · ${scope}` : ''}</span>`);
+      if (b.says?.length) quotes = `<details class="iquotes"><summary>What Reddit says${b.phrase ? ` about “${esc(b.phrase)}”` : ''}</summary>${b.says.map((q) => `<blockquote class="rq ${q.sent > 0.1 ? 'pos' : q.sent < -0.1 ? 'neg' : ''}">“${esc(q.text)}”<cite><a href="${esc(q.link)}" target="_blank" rel="noopener">r/${esc(q.sub || 'reddit')}</a>${q.t ? ` · ${esc(q.t.slice(0, 7))}` : ''}</cite></blockquote>`).join('')}</details>`;
+    }
+    const term = (b?.phrase || it.name.replace(/\s*[-–]\s*\d.*$/, '')).trim();
+    chips.push(`<a class="rchip link" href="https://www.reddit.com/search/?q=${encodeURIComponent(`"${term}"`)}" target="_blank" rel="noopener">Search Reddit ↗</a>`);
+    if (!p && !b?.n && !r) chips.unshift('<span class="rchip muted" title="Not in the store\'s current list, usually because it sold out">No ratings yet</span>');
+    return `<div class="irate">${chips.join('')}</div>${quotes}`;
   }
   // a product that was sold out when you ordered may be listed again later: link items and reviews to it then
   function relink() {
@@ -393,7 +425,7 @@
   }
   function orderCard(o) {
     const v = V[o.vid] || {}, c = carrierOf(o.track), page = storeOrderPage(o.vid), step = stepOf(o);
-    const its = o.items.map((it) => { const p = it.productId && D?.items.find((i) => i.id === it.productId); return `<li>${it.qty > 1 ? `${it.qty} × ` : ''}${p ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(it.name)}</a>` : esc(it.name)}${it.reviewId ? ' <span class="tag move">reviewed</span>' : ''}</li>`; }).join('');
+    const its = o.items.map((it) => { const p = it.productId && D?.items.find((i) => i.id === it.productId); return `<li>${it.qty > 1 ? `${it.qty} × ` : ''}${p ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(it.name)}</a>` : esc(it.name)}${itemRatings(it, o.vid)}</li>`; }).join('');
     return `<div class="order st${step}" data-oid="${o.id}">
       <div class="ohead"><b>${esc(v.name || o.vid)}${o.num ? ` <span class="note">#${esc(o.num)}</span>` : ''}</b><span class="note">${o.total != null ? cents(+o.total) : ''}</span></div>
       <div class="steps" aria-label="Status: ${['Ordered', 'Shipped', 'Out for delivery', 'Delivered'][step]}">${['Ordered', 'Shipped', 'Out for delivery', 'Delivered'].map((l, k) => `<span class="${k <= step ? 'done' : ''}">${l}</span>`).join('')}</div>
@@ -474,6 +506,7 @@
       ${queue.length ? `<div class="rqueue">${queue.map(({ o, it }) => { const p = it.productId && D?.items.find((i) => i.id === it.productId); const open = UI.openReview === it.id;
         return `<div class="card rq-item">${p?.image ? `<img class="thumb" src="${esc(thumb(p.image))}" alt="" referrerpolicy="no-referrer">` : `<div class="thumb ph c-${p?.category || 'flower'}">${CAT_ICON[p?.category] || '🌿'}</div>`}
           <div class="rq-body"><b>${esc(it.name)}</b><div class="note">${esc(V[o.vid]?.name || '')}${o.num ? ` · #${esc(o.num)}` : ''} · received ${o.deliveredAt ? shortDate(o.deliveredAt.slice(0, 10)) : ''}</div>
+          ${itemRatings(it, o.vid)}
           ${open ? reviewForm(o, it) : `<button class="go small" data-ract="open" data-iid="${it.id}">Review it</button>`}</div></div>`; }).join('')}</div>` : '<p class="note empty-s">When an order arrives, each thing in it shows up here to review.</p>'}
       <h3 class="osec">📝 My reviews <span class="note">${reviews.length || ''}</span></h3>
       ${reviews.length ? `<div class="row rfilters"><select id="rSort" aria-label="Sort reviews"><option value="new" ${UI.reviewSort === 'new' ? 'selected' : ''}>Newest</option><option value="best" ${UI.reviewSort === 'best' ? 'selected' : ''}>Highest rated</option><option value="worst" ${UI.reviewSort === 'worst' ? 'selected' : ''}>Lowest rated</option></select>

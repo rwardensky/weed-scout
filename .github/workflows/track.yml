@@ -28,6 +28,14 @@ jobs:
         with:
           node-version: 20
 
+      # the Reddit archive the daily refresh keeps, for "what Reddit says" about things you bought (read-only)
+      - name: Restore Reddit archive
+        uses: actions/cache/restore@v4
+        with:
+          path: cache
+          key: scout-cache-track-${{ github.run_id }}
+          restore-keys: scout-cache-
+
       # VAULT_KEY: the key the Orders tab shows. SHIP24_API_KEY: free key from ship24.com.
       - name: Check packages
         env:
@@ -38,8 +46,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for try in 1 2 3; do
             node track.mjs --out "$RUNNER_TEMP/track-msgs.json"
-            if git diff --quiet -- vault.json; then echo "No tracking changes"; exit 0; fi
-            git add vault.json
+            git add vault.json $( [ -f vault-buzz.json ] && echo vault-buzz.json )
+            if git diff --cached --quiet; then echo "No tracking changes"; exit 0; fi
             git commit -m "Tracking update"
             if git push origin HEAD:main; then exit 0; fi
             # the site saved the vault meanwhile: start again from the newest copy

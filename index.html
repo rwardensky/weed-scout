@@ -297,6 +297,17 @@ body:not([data-tab="orders"]):not([data-tab="suggest"]) .t-orders, body:not([dat
 .rchips { display: flex; flex-wrap: wrap; gap: 5px }
 .rnote { margin: 0; font-size: 14px; white-space: pre-wrap }
 .rfilters { margin-bottom: 10px }
+/* ratings under each ordered item */
+.oitems li { margin-bottom: 8px }
+.irate { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px }
+.rchip { font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--sunk); color: var(--muted); white-space: nowrap; text-decoration: none }
+.rchip.mine { background: #fff3c9; color: #8a5a00 } .rchip.mine i { color: #e2d6c2; font-style: normal }
+.rchip.reddit { background: #ffe8dc; color: #b9461b } .rchip.reddit.pos { background: var(--good-soft); color: var(--good) } .rchip.reddit.neg { background: var(--bad-soft); color: var(--bad) }
+.rchip.link { background: transparent; color: var(--accent); padding-inline: 4px } .rchip.link:hover { text-decoration: underline }
+.rchip.muted { background: transparent; color: var(--faint); padding-inline: 2px }
+.iquotes { margin-top: 4px; font-size: 13px } .iquotes summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 12px }
+.iquotes .rq { margin: 6px 0 }
+:root[data-theme="night"] .rchip.mine { background: #4a3618; color: #ffcf7a } :root[data-theme="night"] .rchip.reddit { background: #4a2a2a; color: #ffb08a }
 /* private sync */
 .synccard { margin-top: 26px }
 .synccard summary { cursor: pointer; display: flex; flex-direction: column; gap: 2px; color: var(--fg); font-size: 14px }
