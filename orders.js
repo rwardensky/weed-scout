@@ -7,7 +7,7 @@
 (() => {
   const VKEY = 'ws-vault', KKEY = 'ws-vault-key';
   const now = () => Date.now();
-  const today = () => new Date().toISOString().slice(0, 10);
+  const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); }; // your local date, not UTC
   const uid = () => now().toString(36) + Math.random().toString(36).slice(2, 6);
   let V0 = ls.get(VKEY, null) || { orders: [], reviews: [], updatedAt: 0 };
   let remoteSha = null, syncState = 'local', syncMsg = '', pushTimer = null, editor = null, ocrBusy = '';
@@ -123,12 +123,79 @@
     try {
       await loadTess();
       const worker = await Tesseract.createWorker('eng', 1, { logger: (m) => { if (m.status === 'recognizing text') { ocrBusy = `Reading your screenshot… ${Math.round(m.progress * 100)}%`; const el = $('#ocrMsg'); if (el) el.textContent = ocrBusy; } } });
-      const { data } = await worker.recognize(await prepImage(file));
+      const { data } = await worker.recognize(await prepImage(file), {}, { text: true, blocks: true });
       await worker.terminate();
       ocrBusy = '';
-      openEditor(parseOrderText(data.text), true);
+      const words = [];
+      for (const b of data.blocks || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) for (const w of l.words || []) words.push({ t: w.text, c: w.confidence, ...w.bbox });
+      const parsed = parseOrderText(data.text, words);
+      // a "your order shipped" email: tracking number but no items → add it to the order you already saved
+      if (parsed.track && !parsed.items.length) {
+        const o = live(V0.orders).filter((x) => x.status !== 'delivered' && (!parsed.vid || x.vid === parsed.vid) && (!x.track || x.track.replace(/\s/g, '') !== parsed.track))
+          .sort((a, b) => !!a.track - !!b.track || b.date.localeCompare(a.date))[0];
+        if (o) { o.track = parsed.track; o.status = 'shipped'; delete o.trk; o.updatedAt = now(); flash = `📦 Added tracking ${parsed.track} to your ${V[o.vid]?.name || ''} order${o.num ? ` #${o.num}` : ''}.`; save(); return; }
+        flash = 'That looks like a shipping email, but there\'s no matching order yet. Add the order below (or its confirmation screenshot first).';
+      }
+      openEditor(parsed, true);
     } catch (e) { ocrBusy = ''; openEditor({ items: [] }, true); editor.warn = `Couldn't read that image (${e.message || e}). Type the details below instead.`; render(); }
   }
+  // Order tables in emails and on store pages: photo | name (wrapped over several lines) | ×1 | $35.00.
+  // Read by position: keep only words in the name column, split products at the big vertical gaps, take the
+  // quantity from the ×N on the same rows. Photos to the left of the names read as junk, so they're dropped.
+  function parseTable(words) {
+    const qty = words.filter((w) => /^[^\w$]*[x×X]\s?\d{1,2}$/.test(w.t));
+    if (!qty.length) return null;
+    const qx = median(qty.map((w) => w.x0));
+    const head = words.find((w) => /^product/i.test(w.t)), foot = words.find((w) => /^(sub)?total/i.test(w.t) && w.y0 > qty[0].y0);
+    const top = head ? head.y1 : Math.min(...qty.map((w) => w.y0)) - 400, bottom = foot ? foot.y0 : Infinity;
+    let cand = words.filter((w) => w.x1 < qx - 4 && w.y0 > top && w.y1 < bottom && /[A-Za-z0-9]/.test(w.t));
+    // the name column: the left edge most confident words share
+    const edges = {}; for (const w of cand) if (w.c >= 60) { const k = Math.round(w.x0 / 20); edges[k] = (edges[k] || 0) + 1; }
+    const nx = +(Object.entries(edges).sort((a, b) => b[1] - a[1])[0]?.[0] ?? NaN) * 20;
+    if (isNaN(nx)) return null;
+    // keep words that reach into the name column (a stray mark from the photo can glue onto "“Peaches"); photo junk ends before it
+    cand = cand.filter((w) => w.x1 >= nx + 15 && w.x0 >= nx - 150).map((w) => (w.x0 < nx - 10 ? { ...w, t: w.t.replace(/^[^A-Za-z0-9]+/, '') } : w)).filter((w) => w.t).sort((a, b) => a.y0 - b.y0 || a.x0 - b.x0);
+    if (!cand.length) return null;
+    // rows → products, split where the gap is much bigger than the usual line spacing
+    const rows = [];
+    for (const w of cand) { const r = rows.at(-1); if (r && Math.abs((w.y0 + w.y1) / 2 - r.y) < (w.y1 - w.y0) * 0.6) r.w.push(w); else rows.push({ y: (w.y0 + w.y1) / 2, w: [w] }); }
+    const steps = rows.slice(1).map((r, k) => r.y - rows[k].y);
+    const step = median(steps.length ? steps : [60]);
+    const groups = [[rows[0]]];
+    for (let k = 1; k < rows.length; k++) {
+      const onlySize = rows[k].w.every((w) => !/[A-Za-z]{3}/.test(w.t)); // "- 2g" on its own line belongs to the name above
+      if (rows[k].y - rows[k - 1].y > step * 1.7 && !onlySize) groups.push([]);
+      groups.at(-1).push(rows[k]);
+    }
+    return groups.map((g) => {
+      const y0 = g[0].y - step, y1 = g.at(-1).y + step;
+      const q = qty.find((w) => (w.y0 + w.y1) / 2 > y0 && (w.y0 + w.y1) / 2 < y1);
+      const name = g.map((r) => r.w.sort((a, b) => a.x0 - b.x0).map((w) => w.t).join(' ')).join(' ');
+      return { name, qty: q ? +q.t.match(/(\d{1,2})$/)[1] : 1 };
+    });
+  }
+  const median = (a) => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1] ?? 0; };
+  // fix one-letter misreads ("omall" → "Small") against words that appear in product names
+  let VOCAB = null;
+  function spellFix(name) {
+    if (!D) return name;
+    VOCAB ||= (() => { const m = new Map(); for (const i of D.items) for (const w of i.title.split(/[^A-Za-z]+/)) if (w.length >= 4) m.set(w.toLowerCase(), (m.get(w.toLowerCase()) || 0) + 1); return m; })();
+    return name.replace(/[A-Za-z]{4,}/g, (w) => {
+      const lw = w.toLowerCase(); if (VOCAB.has(lw)) return w;
+      let best = null;
+      for (const [v, n] of VOCAB) if (Math.abs(v.length - lw.length) <= 1 && oneEdit(v, lw) && (!best || n > best.n)) best = { v, n };
+      return best ? best.v.replace(/^./, (c) => (/[A-Z]/.test(w[0]) || w === lw ? c.toUpperCase() : c)) : w;
+    });
+  }
+  // exactly one letter swapped, missing or extra ("omall"/"small", "emon"/"lemon")
+  function oneEdit(a, b) {
+    if (a === b) return false;
+    if (a.length === b.length) { let d = 0; for (let k = 0; k < a.length; k++) if (a[k] !== b[k] && ++d > 1) return false; return d === 1; }
+    const [s, l] = a.length < b.length ? [a, b] : [b, a];
+    for (let k = 0; k < l.length; k++) if (l.slice(0, k) + l.slice(k + 1) === s) return true;
+    return false;
+  }
+  let flash = '';
   // The text reader is trained on dark text on white. Dark-mode store pages (White Ash Reserve) and small phone
   // text read badly as-is, so: enlarge small images, go grayscale, flip light-on-dark to dark-on-light, add contrast.
   async function prepImage(file) {
@@ -154,7 +221,7 @@
     } catch { return file; }
   }
   const MONTHS = 'jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec';
-  function parseOrderText(text) {
+  function parseOrderText(text, words = null) {
     const lines = text.split('\n').map((l) => l.replace(/[|]/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
     const all = lines.join('\n');
     const out = { items: [], raw: text };
@@ -165,15 +232,19 @@
       if (low.includes(v.name.toLowerCase()) || (host.length > 3 && low.includes(host)) || (v.name.split(' ').length > 1 && low.includes(v.name.split(' ').slice(0, 2).join(' ').toLowerCase()))) { out.vid = v.id; break; }
     }
     out.num = (all.match(/#\s?(\d{4,10})\b/) || all.match(/order\s*(?:number|no\.?|#|id)?\s*[:#]?\s*#?\s*([A-Z]{0,3}\d{4,10})\b/i) || all.match(/#\s?([A-Z0-9-]{4,12})\b/i) || [])[1] || '';
-    const dm = all.match(new RegExp(`\\b(${MONTHS})[a-z]*\\.? \\d{1,2},? \\d{4}`, 'i')) || all.match(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/);
+    const dm = all.match(new RegExp(`\\b(${MONTHS})[a-z]*\\.? \\d{1,2},? \\d{4}`, 'i'));
+    const dn = all.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})\b/);
     if (dm) { const d = new Date(dm[0]); if (!isNaN(d)) out.date = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); }
+    else if (dn) out.date = `${dn[3].length === 2 ? '20' + dn[3] : dn[3]}-${dn[1].padStart(2, '0')}-${dn[2].padStart(2, '0')}`;
     const totalLine = lines.filter((l) => /\btotal\b/i.test(l) && !/sub ?total/i.test(l)).pop();
     const amt = (l) => [...(l || '').matchAll(/\$\s?(\d{1,4}(?:,\d{3})*\.\d{2})/g)].map((m) => +m[1].replace(/,/g, ''));
     out.total = amt(totalLine).pop() ?? (amt(all).length ? Math.max(...amt(all)) : null);
     out.track = (all.replace(/\s(?=\d{4}\b)/g, '').match(/\b(1Z[0-9A-Z]{16}|9[1-5]\d{18,24}|[A-Z]{2}\d{9}US)\b/) || [])[1] || '';
     // items: every "1 × Name - 3.5g" anywhere in a line (order tables put the first item mid-row, after the date),
     // else "Name × 2", else lines that name a size; prices and status words are trimmed off
-    const clean = (n) => n.replace(/(\d)\s?[¢€£]/g, '$1g').replace(/(\d)\s?q\b/g, '$1g').replace(/\$\s?\d[\d,.]*.*$/, '').replace(/\b(processing|completed|shipped|on hold|pending)\b.*$/i, '').replace(/\s{2,}/g, ' ').replace(/[-–—\s]+$/, '').trim();
+    const clean = (n) => n.replace(/(\d)\s?[¢€£]g?(?![a-z])/gi, '$1g').replace(/(\d)\s?q\b/g, '$1g').replace(/\$\s?\d[\d,.]*.*$/, '').replace(/\b(processing|completed|shipped|on hold|pending)\b.*$/i, '')
+      .replace(/[“”"«»\[\]{}|_~]+/g, '').replace(/(^|\s)[.,;:]+(?=[A-Za-z])/g, '$1') // OCR junk from photos and borders
+      .replace(/\s*[-–—]\s*(\d+(?:\.\d+)?\s?(?:g|oz|mg|ml)\b)/i, ' - $1').replace(/\s{2,}/g, ' ').replace(/[-–—\s]+$/, '').trim();
     // on a phone the item column is narrow, so "1 × Small Batch Cheerios - 3.5g" wraps over two or three lines:
     // glue the following lines on until the size shows up (or something that clearly isn't the name)
     const SIZE = /\b\d+(?:\.\d+)?\s*(?:g|gr|grams?|oz|ml|mg|ct|pk)\b/i;
@@ -190,7 +261,10 @@
       }
       joined.push(l);
     }
-    for (const l of joined) for (const m of l.matchAll(/(?:^|\s)(\d{1,2})\s*[x×X*]\s+(.+?)(?=\s+\d{1,2}\s*[x×X*]\s|\s*\$|\s*$)/g)) {
+    // an order table read by position beats reading the text line by line
+    const table = words && parseTable(words);
+    if (table?.length) for (const t of table) { const name = spellFix(clean(t.name.replace(/^[^A-Za-z0-9]+/, ''))); if (name.length >= 3 && /[a-z]{3}/i.test(name)) out.items.push({ name, qty: t.qty }); }
+    if (!out.items.length) for (const l of joined) for (const m of l.matchAll(/(?:^|\s)(\d{1,2})\s*[x×X*]\s+(.+?)(?=\s+\d{1,2}\s*[x×X*]\s|\s*\$|\s*$)/g)) {
       const name = clean(m[2]); if (name.length >= 3 && /[a-z]{3}/i.test(name)) out.items.push({ name, qty: +m[1] });
     }
     if (!out.items.length) {
@@ -207,7 +281,8 @@
       for (const v of D?.vendors || []) for (const p of v.promos || []) if (p.code && new RegExp(`\\bcode:?\\s+${p.code}\\b`, 'i').test(all)) out.vid ||= v.id;
     }
     if (!out.vid && out.items.length) {
-      const votes = {}; for (const it of out.items) { const p = matchProduct(null, it.name); if (p) votes[p.vendorId] = (votes[p.vendorId] || 0) + 1; }
+      // one-word names ("Frozen") match too many stores to vote
+      const votes = {}; for (const it of out.items) { if (it.name.split(/\s+/).filter((w) => /[a-z]{3}/i.test(w)).length < 2) continue; const p = matchProduct(null, it.name); if (p) votes[p.vendorId] = (votes[p.vendorId] || 0) + 1; }
       out.vid = Object.entries(votes).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
     }
     return out;
@@ -390,6 +465,7 @@
         <div><h2>📦 Orders &amp; reviews</h2><p class="note">Snap your order confirmation, track it to your door, then review what you got.</p></div>
         <div class="row"><label class="go filebtn">📸 Add from screenshot<input type="file" id="shotIn" accept="image/*" hidden></label><button class="chip" data-oact="new">＋ Type it in</button></div>
       </div>
+      ${flash ? `<div class="banner flash" role="status">${esc(flash)}</div>` : ''}
       ${ocrBusy ? `<div class="card ocr"><span class="spinner" aria-hidden="true"></span><span id="ocrMsg">${esc(ocrBusy)}</span></div>` : ''}
       ${editorHtml()}
       <h3 class="osec">🚚 On the way <span class="note">${coming.length || ''}</span></h3>
@@ -406,6 +482,7 @@
       ${done.length ? `<details class="osec-d" ${UI.showDelivered ? 'open' : ''}><summary><h3 class="osec">✅ Delivered <span class="note">${done.length}</span></h3></summary><div class="orders">${done.map(orderCard).join('')}</div></details>` : ''}
       ${syncCard()}`;
     if (raw) { const pre = el.querySelector('.rawtext'); if (pre) pre.textContent = raw; }
+    if (flash && !render.flashT) render.flashT = setTimeout(() => { flash = ''; render.flashT = null; render(); }, 10000);
   }
 
   // ---------- events ----------
@@ -474,7 +551,8 @@
 
   let wired = false;
   window.vaultData = () => V0;
-  window.__wsParseOrder = (t) => parseOrderText(t); // for testing the screenshot reader
+  window.__wsParseOrder = (t, w) => parseOrderText(t, w); // for testing the screenshot reader
+  window.__wsDebug = { parseTable, prepImage };
   window.initOrdersTab = () => { if (!wired) { wireTab(); wired = true; } render(); load(); };
   window.renderOrdersTab = () => { if (wired) render(); };
   // check for tracking updates when you come back to the page
