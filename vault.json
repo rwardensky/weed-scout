@@ -1,0 +1,7 @@
+{
+ "v": 1,
+ "alg": "AES-256-GCM",
+ "note": "Weed Scout orders and reviews, encrypted. Not readable without the owner's key.",
+ "iv": "cekIpzfIaSGMgUOb",
+ "data": "+HqflP6B0fd0NTqyGiJ0xu8nzLqOxkfBTowKeDoa0Y9NOfV0iK1HPrYlQx28zUVParPRO5NvqDg="
+}
